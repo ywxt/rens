@@ -1,7 +1,7 @@
 use crate::memory::Memory;
 
 pub struct CpuMemory {
-    ram: Vec<u8>,
+    ram: Box<[u8; Self::SIZE_CPU_MEMORY as usize]>,
 }
 impl CpuMemory {
     const SIZE_CPU_MEMORY: u16 = 0x2000;
@@ -14,7 +14,7 @@ impl CpuMemory {
     const ADDRESS_IO_REGISTER_END: u16 = 0x4020 - 1;
     pub fn new() -> Self {
         Self {
-            ram: vec![0; Self::SIZE_CPU_MEMORY as usize],
+            ram: Box::new([0; Self::SIZE_CPU_MEMORY as usize]),
         }
     }
 }
@@ -31,7 +31,7 @@ impl Memory for CpuMemory {
         })
     }
 
-    fn write(&mut self, address: u16, data: u8) -> bool{
+    fn write(&mut self, address: u16, data: u8) -> bool {
         match address {
             Self::ADDRESS_CPU_MEMORY_START..=Self::ADDRESS_CPU_MEMORY_END => {
                 self.ram[(address & Self::NUMBER_CPU_MEMORY_MIRROR) as usize] = data;
