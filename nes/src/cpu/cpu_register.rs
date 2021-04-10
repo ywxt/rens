@@ -1,21 +1,21 @@
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Not};
 
 /// 进位标志
-const P_FLAGS_C: u8 = 1;
+pub(crate) const P_FLAGS_C: u8 = 1;
 /// 零标志
-const P_FLAGS_Z: u8 = 1 << 1;
+pub(crate) const P_FLAGS_Z: u8 = 1 << 1;
 /// 中断使能
-const P_FLAGS_I: u8 = 1 << 2;
+pub(crate) const P_FLAGS_I: u8 = 1 << 2;
 /// 十进制，未使用
-const P_FLAGS_D: u8 = 1 << 3;
+pub(crate) const P_FLAGS_D: u8 = 1 << 3;
+/// BRK
+pub(crate) const P_FLAGS_B: u8 = 1 << 4;
 
-const P_FLAGS_B: u8 = 1 << 4;
-
-const P_FLAGS_U: u8 = 1 << 5;
+pub(crate) const P_FLAGS_U: u8 = 1 << 5;
 /// 溢出标志
-const P_FLAGS_V: u8 = 1 << 6;
+pub(crate) const P_FLAGS_V: u8 = 1 << 6;
 /// 负标志
-const P_FLAGS_N: u8 = 1 << 7;
+pub(crate) const P_FLAGS_N: u8 = 1 << 7;
 
 pub trait Flags:
     Sized
@@ -43,7 +43,7 @@ pub trait Flags:
 }
 impl Flags for u8 {}
 
-#[derive(Default, Debug)]
+#[derive(Default, Clone ,Debug)]
 pub struct CpuRegisters {
     pub a: u8,
     pub x: u8,
@@ -92,5 +92,8 @@ impl CpuRegisters {
     }
     pub fn set_u_flag(&mut self, when: bool) {
         self.p.set_flag(P_FLAGS_U, when);
+    }
+    pub fn clear_flags(&mut self) {
+        self.p = 0;
     }
 }

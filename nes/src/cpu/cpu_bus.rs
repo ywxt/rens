@@ -5,7 +5,7 @@ use super::{CpuMemory, CpuRegisters, CpuStack};
 pub struct CpuBus {
     cpu_memory: CpuMemory,
     mapper: Box<dyn Mapper>,
-    register: CpuRegisters,
+    registers: CpuRegisters,
 }
 impl CpuBus {
     pub fn cpu_read(&self, address: u16) -> Option<u8> {
@@ -25,21 +25,21 @@ impl CpuBus {
         self.cpu_memory.write_word(address, data) || self.mapper.write_word(address, data)
     }
     pub fn stack_push(&mut self, data: u8) -> bool {
-        CpuStack::push(&mut self.cpu_memory, &mut self.register, data)
+        CpuStack::push(&mut self.cpu_memory, &mut self.registers, data)
     }
     pub fn stack_push_word(&mut self, data: u16) -> bool {
-        CpuStack::push_word(&mut self.cpu_memory, &mut self.register, data)
+        CpuStack::push_word(&mut self.cpu_memory, &mut self.registers, data)
     }
     pub fn stack_pop(&mut self) -> Option<u8> {
-        CpuStack::pop(&mut self.cpu_memory, &mut self.register)
+        CpuStack::pop(&mut self.cpu_memory, &mut self.registers)
     }
     pub fn stack_word(&mut self) -> Option<u16> {
-        CpuStack::pop_word(&mut self.cpu_memory, &mut self.register)
+        CpuStack::pop_word(&mut self.cpu_memory, &mut self.registers)
     }
-    pub fn register(&self) -> &CpuRegisters {
-        &self.register
+    pub fn registers(&self) -> &CpuRegisters {
+        &self.registers
     }
-    pub fn register_mut(&mut self) -> &CpuRegisters {
-        &mut self.register
+    pub fn registers_mut(&mut self) -> &mut CpuRegisters {
+        &mut self.registers
     }
 }

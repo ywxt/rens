@@ -1,8 +1,9 @@
 use std::convert::TryFrom;
 
-use crate::{error::RomError, ppu::Mirroring};
+use crate::ppu::Mirroring;
+use super::NesError;
 
-type Result<T> = std::result::Result<T, RomError>;
+type Result<T> = std::result::Result<T, NesError>;
 /// NES ROM HEAD
 /// size: 16 bytes
 #[derive(Debug, Clone)]
@@ -48,7 +49,7 @@ pub struct Header {
 impl Header {
     pub fn from_slice(value: &[u8]) -> Result<Self> {
         if !Self::is_nes_rom(value) {
-            return Err(RomError::InvalidInes(String::from("非NES ROM程序")));
+            return Err(NesError::InvalidInes(String::from("非NES ROM程序")));
         }
         Ok(Self {
             nes: Self::NES_ASCII,
@@ -69,7 +70,7 @@ impl Header {
 }
 
 impl TryFrom<&[u8]> for Header {
-    type Error = RomError;
+    type Error = NesError;
 
     fn try_from(value: &[u8]) -> Result<Self> {
         Self::from_slice(value)
@@ -121,7 +122,7 @@ impl Header {
     }
     pub fn prg_ram_size(&self) -> Result<u8> {
         if self.nes_2_format() {
-            Err(RomError::InvalidInes(String::from("此操作不支持NES 2.0")))
+            Err(NesError::InvalidInes(String::from("此操作不支持NES 2.0")))
         } else {
             Ok(self.flags8)
         }

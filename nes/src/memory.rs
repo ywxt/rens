@@ -7,6 +7,7 @@ pub trait Memory {
         Some(((high as u16) << 8) | (low as u16))
     }
     fn write(&mut self, address: u16, data: u8) -> bool;
+    /// 默认小端
     fn write_word(&mut self, address: u16, data: u16) -> bool {
         let low = (data & 0x00FF) as u8;
         let high = (data >> 8) as u8;

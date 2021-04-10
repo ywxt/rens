@@ -1,10 +1,9 @@
 use std::convert::TryFrom;
 
-use crate::error::RomError;
-
 use super::Header;
+use super::NesError;
 
-pub type Result<T> = std::result::Result<T, RomError>;
+pub type Result<T> = std::result::Result<T, NesError>;
 pub struct NesLoader {
     header: Header,
     /// Trainer，header中trainer标志为1时，大小为512字节，否则为0
@@ -33,7 +32,7 @@ impl NesLoader {
     }
     pub fn from_slice(rom: &[u8]) -> Result<Self> {
         if rom.len() < Self::HEADER_SIZE {
-            return Err(RomError::InvalidInes(String::from(
+            return Err(NesError::InvalidInes(String::from(
                 "INES 文件长度必须不小于16字节",
             )));
         }
@@ -43,7 +42,7 @@ impl NesLoader {
         position += Self::HEADER_SIZE;
         let trainer = if header.trainer() {
             if rom.len() < position + Self::TRAINER_SIZE {
-                return Err(RomError::InvalidInes(String::from("缺少Train段")));
+                return Err(NesError::InvalidInes(String::from("缺少Train段")));
             }
             let vec = Vec::from(&rom[position..position + Self::TRAINER_SIZE]);
             position += Self::TRAINER_SIZE;
@@ -52,14 +51,14 @@ impl NesLoader {
             Vec::default()
         };
         if rom.len() < position + Self::PRG_UNIT_SIZE * (header.prg_size() as usize) {
-            return Err(RomError::InvalidInes(String::from("缺少PRG段")));
+            return Err(NesError::InvalidInes(String::from("缺少PRG段")));
         }
         let prg = Vec::from(
             &rom[position..position + Self::PRG_UNIT_SIZE * (header.prg_size() as usize)],
         );
         position += Self::PRG_UNIT_SIZE * (header.prg_size() as usize);
         if rom.len() < position + Self::CHR_UNIT_SIZE * (header.chr_size() as usize) {
-            return Err(RomError::InvalidInes(String::from("缺少CHR段")));
+            return Err(NesError::InvalidInes(String::from("缺少CHR段")));
         }
         let chr = Vec::from(
             &rom[position..position + Self::CHR_UNIT_SIZE * (header.chr_size() as usize)],
@@ -74,7 +73,7 @@ impl NesLoader {
     }
 }
 impl TryFrom<&[u8]> for NesLoader {
-    type Error = RomError;
+    type Error = NesError;
 
     fn try_from(value: &[u8]) -> Result<Self> {
         Self::from_slice(value)
@@ -83,8 +82,8 @@ impl TryFrom<&[u8]> for NesLoader {
 
 #[cfg(test)]
 mod tests {
-    use std::{convert::TryFrom, fs};
     use super::NesLoader;
+    use std::{convert::TryFrom, fs};
 
     #[test]
     fn test_nes1() {
@@ -96,7 +95,10 @@ mod tests {
         assert_eq!(ines1.header().trainer(), false);
         assert_eq!(ines1.header().mapper_number(), 0x17);
         assert!(ines1.trainer().is_empty());
-        assert_eq!(ines1.prg()[..], bytes1[16..16 + 0x08 * NesLoader::PRG_UNIT_SIZE]);
+        assert_eq!(
+            ines1.prg()[..],
+            bytes1[16..16 + 0x08 * NesLoader::PRG_UNIT_SIZE]
+        );
         assert_eq!(
             ines1.chr()[..],
             bytes1[16 + 0x08 * NesLoader::PRG_UNIT_SIZE
@@ -105,7 +107,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nes2()  {
+    fn test_nes2() {
         let bytes2 = fs::read("./test_data/2.nes").unwrap();
         let ines1 = NesLoader::try_from(&bytes2[..]).unwrap();
         // let ines2 = Ines::try_from(&bytes2[..])?;
@@ -115,7 +117,10 @@ mod tests {
         assert_eq!(ines1.header().trainer(), false);
         assert_eq!(ines1.header().mapper_number(), 0x2D);
         assert!(ines1.trainer().is_empty());
-        assert_eq!(ines1.prg()[..], bytes2[16..16 + 0x20 * NesLoader::PRG_UNIT_SIZE]);
+        assert_eq!(
+            ines1.prg()[..],
+            bytes2[16..16 + 0x20 * NesLoader::PRG_UNIT_SIZE]
+        );
         assert_eq!(
             ines1.chr()[..],
             bytes2[16 + 0x20 * NesLoader::PRG_UNIT_SIZE
