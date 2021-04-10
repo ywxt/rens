@@ -1,15 +1,17 @@
+mod addressing;
 mod cpu_bus;
 mod cpu_memory;
 mod cpu_register;
 mod cpu_stack;
 mod error;
+pub mod instruction;
 
+pub use addressing::*;
 pub use cpu_bus::*;
 pub use cpu_memory::*;
 pub use cpu_register::*;
 pub use cpu_stack::*;
 pub use error::*;
-
 
 use std::{
     cell::{Ref, RefCell},
@@ -18,8 +20,11 @@ use std::{
 
 use crate::clock::Clock;
 
+use self::instruction::InstructionProcessor;
+
 pub struct Cpu {
     bus: Rc<RefCell<CpuBus>>,
+    processor: InstructionProcessor,
     cycles: u32,
     defer_cycles: u32,
 }
@@ -34,7 +39,7 @@ impl Cpu {
             Some(pc) => pc,
             None => return false,
         };
-        let registers = bus.registers_mut();
+        let mut registers = bus.registers_mut();
         registers.a = 0;
         registers.x = 0;
         registers.y = 0;
@@ -84,15 +89,15 @@ impl Cpu {
         true
     }
 
-    fn step(&mut self) -> Result<(),CpuError> {
+    fn step(&mut self) -> Result<(), CpuError> {
         let mut bus = self.bus.borrow_mut();
         let pc = bus.registers().pc;
         bus.registers_mut().pc+=1;
-        let op = match bus.cpu_read_word(pc) {
+        let op = match bus.cpu_read(pc) {
             Some(op) => op,
             None => return Err(CpuError::ReadMemoryAddressError(pc)),
         };
-        let cycles = processor.process(op,&mut bus);
+        self.cycles = self.processor.process(op, &mut bus)?;
         Ok(())
     }
 
@@ -108,7 +113,7 @@ impl Cpu {
 
 impl Clock for Cpu {
     type Error = CpuError;
-    fn clock(&mut self) -> Result<(),CpuError> {
+    fn clock(&mut self) -> Result<(), CpuError> {
         if self.defer_cycles == 0 {
             self.step()?;
         }
