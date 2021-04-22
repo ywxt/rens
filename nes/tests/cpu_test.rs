@@ -28,7 +28,7 @@ fn cpu_test() {
         if *cpu.defer_cycles() == 0u32 {
             let capture = match captures.next() {
                 None => break,
-                Some(captuer) => captuer,
+                Some(capture) => capture,
             };
             assert!(check(capture, *cpu.cycles(), cpu.bus().registers()));
         }
