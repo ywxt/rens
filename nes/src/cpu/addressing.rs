@@ -1,6 +1,6 @@
 use super::CpuBus;
 
-#[derive(PartialEq, Eq, Debug, Hash)]
+#[derive(PartialEq, Eq, Debug, Hash, Copy, Clone)]
 pub enum AddressingMode {
     ImplicitAddressingMode,
     AccumulatorAddressingMode,
@@ -16,7 +16,8 @@ pub enum AddressingMode {
     IndirectXAddressingMode,
     IndirectYAddressingMode,
 }
-#[derive(PartialEq, Eq, Debug)]
+
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum AddressingType {
     Data,
     Address,
@@ -44,9 +45,7 @@ impl AddressingMode {
     pub fn addressing(&self, bus: &mut CpuBus) -> Option<(u16, bool)> {
         match self {
             AddressingMode::ImplicitAddressingMode => Self::implicit_addressing(bus),
-            AddressingMode::AccumulatorAddressingMode => {
-                Self::accumulator_addressing(bus)
-            }
+            AddressingMode::AccumulatorAddressingMode => Self::accumulator_addressing(bus),
             AddressingMode::ImmediateAddressingMode => Self::immediate_addressing(bus),
             AddressingMode::AbsoluteAddressingMode => Self::absolute_addressing(bus),
             AddressingMode::AbsoluteXAddressingMode => Self::absolute_x_addressing(bus),
@@ -61,9 +60,29 @@ impl AddressingMode {
         }
     }
 
+    pub fn read(&self, bus: &CpuBus, data: u16) -> Option<u8> {
+        Some(if self.addressing_type() == AddressingType::Address {
+            bus.cpu_read(data)?
+        } else {
+            data as u8
+        })
+    }
+    pub fn write(&self, bus: &mut CpuBus, address: u16, data: u8) -> bool {
+        if *self == Self::AccumulatorAddressingMode {
+            bus.registers_mut().a = data;
+            true
+        } else if self.addressing_type() == AddressingType::Address {
+            bus.cpu_write(address, data);
+            true
+        } else {
+            false
+        }
+    }
+    #[allow(clippy::unnecessary_wraps)]
     fn implicit_addressing(_bus: &mut CpuBus) -> Option<(u16, bool)> {
         Some((0, false))
     }
+    #[allow(clippy::unnecessary_wraps)]
     fn accumulator_addressing(bus: &mut CpuBus) -> Option<(u16, bool)> {
         Some((bus.registers().a as u16, false))
     }
@@ -100,12 +119,18 @@ impl AddressingMode {
     fn zero_page_x_addressing(bus: &mut CpuBus) -> Option<(u16, bool)> {
         let pc = bus.registers().pc;
         bus.registers_mut().pc += 1;
-        Some((((bus.cpu_read(pc)? + bus.registers().x) as u16) & 0x00FF, false))
+        Some((
+            ((bus.cpu_read(pc)? + bus.registers().x) as u16) & 0x00FF,
+            false,
+        ))
     }
     fn zero_page_y_addressing(bus: &mut CpuBus) -> Option<(u16, bool)> {
         let pc = bus.registers().pc;
         bus.registers_mut().pc += 1;
-        Some((((bus.cpu_read(pc)? + bus.registers().y) as u16) & 0x00FF, false))
+        Some((
+            ((bus.cpu_read(pc)? + bus.registers().y) as u16) & 0x00FF,
+            false,
+        ))
     }
     fn relative_addressing(bus: &mut CpuBus) -> Option<(u16, bool)> {
         let pc = bus.registers().pc;
@@ -125,7 +150,7 @@ impl AddressingMode {
     fn indirect_x_addressing(bus: &mut CpuBus) -> Option<(u16, bool)> {
         let pc = bus.registers().pc;
         bus.registers_mut().pc += 2;
-        let indirect = (bus.registers().x + bus.cpu_read(pc)?) as u16;
+        let indirect = bus.registers().x as u16 + bus.cpu_read(pc)? as u16;
         let low = bus.cpu_read(indirect)? as u16;
         let high = bus.cpu_read(indirect + 1)? as u16;
         let address = (high << 8) | low;

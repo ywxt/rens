@@ -92,12 +92,12 @@ impl Cpu {
     fn step(&mut self) -> Result<(), CpuError> {
         let mut bus = self.bus.borrow_mut();
         let pc = bus.registers().pc;
-        bus.registers_mut().pc+=1;
+        bus.registers_mut().pc += 1;
         let op = match bus.cpu_read(pc) {
             Some(op) => op,
             None => return Err(CpuError::ReadMemoryAddressError(pc)),
         };
-        self.cycles = self.processor.process(op, &mut bus)?;
+        self.defer_cycles = self.processor.process(op, &mut bus)?;
         Ok(())
     }
 
