@@ -5,7 +5,7 @@ pub(crate) struct InstructionProcessor;
 impl InstructionProcessor {
     pub fn process(&self, ins: u8, bus: &mut CpuBus) -> Result<u32, CpuError> {
         let instruction =
-            Instruction::from_instruction(ins).ok_or(CpuError::InvalidInstructionError(ins))?;
+            Instruction::from_instruction(ins).ok_or(CpuError::UnknownInstructionError(ins))?;
         instruction
             .invoke(bus)
             .ok_or(CpuError::InvokeInstructionError(ins))

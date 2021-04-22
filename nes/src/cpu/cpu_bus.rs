@@ -8,6 +8,14 @@ pub struct CpuBus {
     registers: CpuRegisters,
 }
 impl CpuBus {
+    pub fn new(mapper: Box<dyn Mapper>) -> Self {
+        Self {
+            cpu_memory: CpuMemory::new(),
+            mapper,
+            registers: CpuRegisters::new(),
+        }
+    }
+
     pub fn cpu_read(&self, address: u16) -> Option<u8> {
         self.cpu_memory
             .read(address)

@@ -21,6 +21,7 @@ use std::{
 use crate::clock::Clock;
 
 use self::instruction::InstructionProcessor;
+use std::cell::RefMut;
 
 pub struct Cpu {
     bus: Rc<RefCell<CpuBus>>,
@@ -33,6 +34,14 @@ impl Cpu {
     const VECTOR_RESET: u16 = 0xFFFC;
     const VECTOR_NMI: u16 = 0xFFFA;
     const VECTOR_IRQ_OR_BRK: u16 = 0xFFFE;
+    pub fn new(bus: Rc<RefCell<CpuBus>>) -> Self {
+        Self {
+            bus,
+            processor: InstructionProcessor,
+            cycles: 0,
+            defer_cycles: 0,
+        }
+    }
     pub fn reset(&mut self) -> bool {
         let mut bus = self.bus.borrow_mut();
         let pc = match bus.cpu_read_word(Self::VECTOR_RESET) {
@@ -106,8 +115,16 @@ impl Cpu {
         self.bus.borrow()
     }
     #[cfg(debug_assertions)]
+    pub fn bus_mut(&self) -> RefMut<'_, CpuBus> {
+        self.bus.borrow_mut()
+    }
+    #[cfg(debug_assertions)]
     pub fn cycles(&self) -> &u32 {
         &self.cycles
+    }
+    #[cfg(debug_assertions)]
+    pub fn defer_cycles(&self) -> &u32 {
+        &self.defer_cycles
     }
 }
 
