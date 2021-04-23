@@ -20,7 +20,7 @@ fn cpu_test() {
     cpu.reset();
     cpu.bus_mut().registers_mut().pc = 0xC000;
     let regex = Regex::new(
-        r"(?P<ADDR>[A-Z0-9]{4})\s+([A-Z0-9]{2} )+\s+[*#$=@,()A-Z0-9 ]+A:(?P<A>[A-Z0-9]{2}) X:(?P<X>[A-Z0-9]{2}) Y:(?P<Y>[A-Z0-9]{2}) P:(?P<P>[A-Z0-9]{2}) SP:(?P<SP>[A-Z0-9]{2}) PPU:  (?P<PPU>\d+, \d+) CYC:(?P<CYC>\d+)",
+        r"(?P<ADDR>[A-Z0-9]{4})\s+([A-Z0-9]{2} )+\s+[*#$=@,()A-Z0-9 ]+A:(?P<A>[A-Z0-9]{2}) X:(?P<X>[A-Z0-9]{2}) Y:(?P<Y>[A-Z0-9]{2}) P:(?P<P>[A-Z0-9]{2}) SP:(?P<SP>[A-Z0-9]{2}) PPU:\s*(?P<PPU>\d+,\s*\d+) CYC:(?P<CYC>\d+)",
     ).unwrap();
     let log = std::fs::read_to_string("test_data/nestest.log").unwrap();
     let mut captures = regex.captures_iter(&log);
