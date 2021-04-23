@@ -4,7 +4,7 @@ mod cpu_memory;
 mod cpu_register;
 mod cpu_stack;
 mod error;
-pub mod instruction;
+mod instruction;
 
 pub use addressing::*;
 pub use cpu_bus::*;

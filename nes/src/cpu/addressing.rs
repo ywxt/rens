@@ -1,6 +1,6 @@
 use super::CpuBus;
 
-#[derive(PartialEq, Eq, Debug, Hash, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Hash)]
 pub enum AddressingMode {
     ImplicitAddressingMode,
     AccumulatorAddressingMode,
