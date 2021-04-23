@@ -12,6 +12,7 @@ pub use cpu_memory::*;
 pub use cpu_register::*;
 pub use cpu_stack::*;
 pub use error::*;
+use instruction::*;
 
 use std::{
     cell::{Ref, RefCell},
@@ -20,7 +21,6 @@ use std::{
 
 use crate::clock::Clock;
 
-use self::instruction::InstructionProcessor;
 use std::cell::RefMut;
 
 pub struct Cpu {
