@@ -135,14 +135,14 @@ impl AddressingMode {
     fn relative_addressing(bus: &mut CpuBus) -> Option<(u16, bool)> {
         let pc = bus.registers().pc;
         bus.registers_mut().pc += 1;
-        let offset = bus.cpu_read(bus.registers().pc)? as i8;
-        let address = ((pc as i32) + (offset as i32)) as u16;
+        let offset = bus.cpu_read(pc)? as i8;
+        let address = ((bus.registers().pc as i32) + (offset as i32)) as u16;
         Some((address, is_page_crossed(address, pc)))
     }
     fn indirect_addressing(bus: &mut CpuBus) -> Option<(u16, bool)> {
         let pc = bus.registers().pc;
         bus.registers_mut().pc += 2;
-        let low = bus.cpu_read(pc)? as u16;
+        let low = bus.cpu_read_word(pc)? as u16;
         let high = (low & 0xFF00) | ((low + 1) & 0x00FF);
         let address = ((bus.cpu_read(high)? as u16) << 8) | (bus.cpu_read(low)? as u16);
         Some((address, false))
@@ -168,5 +168,5 @@ impl AddressingMode {
 }
 
 fn is_page_crossed(old: u16, new: u16) -> bool {
-    (old & 0xFF00) == (new & 0xFF00)
+    (old & 0xFF00) != (new & 0xFF00)
 }
