@@ -26,6 +26,7 @@ pub(super) enum Instruction {
     Nop(u8, InstructionInfo),
     Sec(u8, InstructionInfo),
     Bcs(u8, InstructionInfo),
+    Clc(u8, InstructionInfo),
 }
 
 impl Instruction {
@@ -206,6 +207,16 @@ impl Instruction {
                 },
             ),
 
+            // CLC
+            0x18 => Self::Clc(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImplicitAddressingMode,
+                    cycles: 2,
+                    can_cross_page: false,
+                },
+            ),
+
             _ => None?,
         })
     }
@@ -219,6 +230,7 @@ impl Instruction {
             Instruction::Nop(_, ins) => Self::nop(bus, ins),
             Instruction::Sec(_, ins) => Self::sec(bus, ins),
             Instruction::Bcs(_, ins) => Self::bcs(bus, ins),
+            Instruction::Clc(_, ins) => Self::clc(bus, ins),
         }
     }
 
@@ -266,6 +278,11 @@ impl Instruction {
         }
         Some(get_branch_cycles(instruction, address.1, jmp_success))
     }
+    #[allow(clippy::unnecessary_wraps)]
+    fn clc(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        bus.registers_mut().set_c_flag(false);
+        Some(instruction.cycles)
+    }
 }
 
 fn get_cross_page_cycles(ins: InstructionInfo, page_crossed: bool) -> u32 {
@@ -288,4 +305,3 @@ fn get_branch_cycles(ins: InstructionInfo, page_crossed: bool, success: bool) ->
             0
         }
 }
-
