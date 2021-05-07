@@ -12,13 +12,13 @@ impl InstructionProcessor {
     }
 }
 
-pub(super) struct InstructionInfo {
+struct InstructionInfo {
     mode: AddressingMode,
     cycles: u32,
     can_cross_page: bool,
 }
 
-pub(super) enum Instruction {
+enum Instruction {
     Jmp(u8, InstructionInfo),
     Ldx(u8, InstructionInfo),
     Stx(u8, InstructionInfo),
