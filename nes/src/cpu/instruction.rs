@@ -27,6 +27,9 @@ pub(super) enum Instruction {
     Sec(u8, InstructionInfo),
     Bcs(u8, InstructionInfo),
     Clc(u8, InstructionInfo),
+    Bcc(u8, InstructionInfo),
+    Lda(u8, InstructionInfo),
+    Beq(u8, InstructionInfo),
 }
 
 impl Instruction {
@@ -217,6 +220,92 @@ impl Instruction {
                 },
             ),
 
+            // BCC
+            0x90 => Self::Bcc(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::RelativeAddressingMode,
+                    cycles: 2,
+                    can_cross_page: true,
+                },
+            ),
+
+            // LDA
+            0xA9 => Self::Lda(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImmediateAddressingMode,
+                    cycles: 2,
+                    can_cross_page: false,
+                },
+            ),
+            0xA5 => Self::Lda(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageAddressingMode,
+                    cycles: 3,
+                    can_cross_page: false,
+                },
+            ),
+            0xB5 => Self::Lda(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0xAD => Self::Lda(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0xBD => Self::Lda(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: true,
+                },
+            ),
+            0xB9 => Self::Lda(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteYAddressingMode,
+                    cycles: 4,
+                    can_cross_page: true,
+                },
+            ),
+            0xA1 => Self::Lda(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::IndirectAddressingMode,
+                    cycles: 6,
+                    can_cross_page: false,
+                },
+            ),
+            0xB1 => Self::Lda(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::IndirectYAddressingMode,
+                    cycles: 5,
+                    can_cross_page: true,
+                },
+            ),
+
+            // BEQ
+            0xF0 => Self::Beq(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::RelativeAddressingMode,
+                    cycles: 2,
+                    can_cross_page: true,
+                },
+            ),
+
             _ => None?,
         })
     }
@@ -231,6 +320,9 @@ impl Instruction {
             Instruction::Sec(_, ins) => Self::sec(bus, ins),
             Instruction::Bcs(_, ins) => Self::bcs(bus, ins),
             Instruction::Clc(_, ins) => Self::clc(bus, ins),
+            Instruction::Bcc(_, ins) => Self::bcc(bus, ins),
+            Instruction::Lda(_, ins) => Self::lda(bus, ins),
+            Instruction::Beq(_, ins) => Self::beq(bus, ins),
         }
     }
 
@@ -282,6 +374,30 @@ impl Instruction {
     fn clc(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
         bus.registers_mut().set_c_flag(false);
         Some(instruction.cycles)
+    }
+    fn bcc(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let jmp_success = !bus.registers().has_c_flag();
+        let address = instruction.mode.addressing(bus)?;
+        if jmp_success {
+            bus.registers_mut().pc = address.0;
+        }
+        Some(get_branch_cycles(instruction, address.1, jmp_success))
+    }
+
+    fn lda(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let address = instruction.mode.addressing(bus)?;
+        let data = instruction.mode.read(bus, address.0)?;
+        bus.registers_mut().a = data;
+        bus.registers_mut().set_z_n_flags(data);
+        Some(get_cross_page_cycles(instruction, address.1))
+    }
+    fn beq(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let jmp_success = bus.registers().has_z_flag();
+        let address = instruction.mode.addressing(bus)?;
+        if jmp_success {
+            bus.registers_mut().pc = address.0;
+        }
+        Some(get_branch_cycles(instruction, address.1, jmp_success))
     }
 }
 
