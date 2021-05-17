@@ -30,6 +30,7 @@ enum Instruction {
     Bcc(u8, InstructionInfo),
     Lda(u8, InstructionInfo),
     Beq(u8, InstructionInfo),
+    Bne(u8, InstructionInfo),
 }
 
 impl Instruction {
@@ -306,6 +307,15 @@ impl Instruction {
                 },
             ),
 
+            // BNE
+            0xD0 => Self::Bne(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::RelativeAddressingMode,
+                    cycles: 2,
+                    can_cross_page: true,
+                },
+            ),
             _ => None?,
         })
     }
@@ -323,6 +333,7 @@ impl Instruction {
             Instruction::Bcc(_, ins) => Self::bcc(bus, ins),
             Instruction::Lda(_, ins) => Self::lda(bus, ins),
             Instruction::Beq(_, ins) => Self::beq(bus, ins),
+            Instruction::Bne(_, ins) => Self::bne(bus, ins),
         }
     }
 
@@ -393,6 +404,14 @@ impl Instruction {
     }
     fn beq(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
         let jmp_success = bus.registers().has_z_flag();
+        let address = instruction.mode.addressing(bus)?;
+        if jmp_success {
+            bus.registers_mut().pc = address.0;
+        }
+        Some(get_branch_cycles(instruction, address.1, jmp_success))
+    }
+    fn bne(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let jmp_success = !bus.registers().has_z_flag();
         let address = instruction.mode.addressing(bus)?;
         if jmp_success {
             bus.registers_mut().pc = address.0;
