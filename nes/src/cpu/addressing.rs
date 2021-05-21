@@ -72,8 +72,7 @@ impl AddressingMode {
             bus.registers_mut().a = data;
             true
         } else if self.addressing_type() == AddressingType::Address {
-            bus.cpu_write(address, data);
-            true
+            bus.cpu_write(address, data)
         } else {
             false
         }

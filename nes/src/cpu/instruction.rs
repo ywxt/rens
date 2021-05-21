@@ -31,6 +31,14 @@ enum Instruction {
     Lda(u8, InstructionInfo),
     Beq(u8, InstructionInfo),
     Bne(u8, InstructionInfo),
+    Sta(u8, InstructionInfo),
+    Bit(u8, InstructionInfo),
+    Bvs(u8, InstructionInfo),
+    Bvc(u8, InstructionInfo),
+    Bpl(u8, InstructionInfo),
+    Rts(u8, InstructionInfo),
+    Sei(u8, InstructionInfo),
+    Asl(u8, InstructionInfo),
 }
 
 impl Instruction {
@@ -316,6 +324,178 @@ impl Instruction {
                     can_cross_page: true,
                 },
             ),
+
+            // STA
+            0x85 => Self::Sta(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageAddressingMode,
+                    cycles: 3,
+                    can_cross_page: false,
+                },
+            ),
+            0x95 => Self::Sta(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0x8D => Self::Sta(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0x9D => Self::Sta(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteXAddressingMode,
+                    cycles: 5,
+                    can_cross_page: false,
+                },
+            ),
+            0x99 => Self::Sta(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteYAddressingMode,
+                    cycles: 5,
+                    can_cross_page: false,
+                },
+            ),
+            0x81 => Self::Sta(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::IndirectXAddressingMode,
+                    cycles: 6,
+                    can_cross_page: false,
+                },
+            ),
+            0x91 => Self::Sta(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::IndirectYAddressingMode,
+                    cycles: 6,
+                    can_cross_page: false,
+                },
+            ),
+
+            // BIT
+            0x24 => Self::Bit(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageAddressingMode,
+                    cycles: 3,
+                    can_cross_page: false,
+                },
+            ),
+            0x2C => Self::Bit(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+
+            // BVS
+            0x70 => Self::Bvs(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::RelativeAddressingMode,
+                    cycles: 2,
+                    can_cross_page: true,
+                },
+            ),
+
+            // BVC
+            0x50 => Self::Bvc(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::RelativeAddressingMode,
+                    cycles: 2,
+                    can_cross_page: true,
+                },
+            ),
+
+            // BPL
+            0x10 => Self::Bpl(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::RelativeAddressingMode,
+                    cycles: 2,
+                    can_cross_page: true,
+                },
+            ),
+
+            // RTS
+            0x60 => Self::Rts(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImplicitAddressingMode,
+                    cycles: 6,
+                    can_cross_page: false,
+                },
+            ),
+
+            // SEI
+            0x78 => Self::Sei(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImplicitAddressingMode,
+                    cycles: 2,
+                    can_cross_page: false,
+                },
+            ),
+
+            // ASL
+            0x0A => Self::Asl(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AccumulatorAddressingMode,
+                    cycles: 2,
+                    can_cross_page: false,
+                },
+            ),
+
+            0x06 => Self::Asl(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageAddressingMode,
+                    cycles: 5,
+                    can_cross_page: false,
+                },
+            ),
+
+            0x16 => Self::Asl(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageXAddressingMode,
+                    cycles: 6,
+                    can_cross_page: false,
+                },
+            ),
+
+            0x0E => Self::Asl(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteAddressingMode,
+                    cycles: 6,
+                    can_cross_page: false,
+                },
+            ),
+
+            0x1E => Self::Asl(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteXAddressingMode,
+                    cycles: 7,
+                    can_cross_page: false,
+                },
+            ),
             _ => None?,
         })
     }
@@ -334,6 +514,14 @@ impl Instruction {
             Instruction::Lda(_, ins) => Self::lda(bus, ins),
             Instruction::Beq(_, ins) => Self::beq(bus, ins),
             Instruction::Bne(_, ins) => Self::bne(bus, ins),
+            Instruction::Sta(_, ins) => Self::sta(bus, ins),
+            Instruction::Bit(_, ins) => Self::bit(bus, ins),
+            Instruction::Bvs(_, ins) => Self::bvs(bus, ins),
+            Instruction::Bvc(_, ins) => Self::bvc(bus, ins),
+            Instruction::Bpl(_, ins) => Self::bpl(bus, ins),
+            Instruction::Rts(_, ins) => Self::rts(bus, ins),
+            Instruction::Asl(_, ins) => Self::asl(bus, ins),
+            Instruction::Sei(_, ins) => Self::sei(bus, ins),
         }
     }
 
@@ -417,6 +605,68 @@ impl Instruction {
             bus.registers_mut().pc = address.0;
         }
         Some(get_branch_cycles(instruction, address.1, jmp_success))
+    }
+    fn sta(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let address = instruction.mode.addressing(bus)?;
+        if !bus.cpu_write(address.0, bus.registers().a) {
+            return None;
+        }
+        Some(instruction.cycles)
+    }
+    fn bit(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let address = instruction.mode.addressing(bus)?;
+        let data = instruction.mode.read(bus, address.0)?;
+        let a = bus.registers().a;
+        bus.registers_mut().set_z_flag(data & a);
+        bus.registers_mut()
+            .set_v_flag(data & 0b01000000 == 0b01000000);
+        bus.registers_mut().set_n_flag(data);
+        Some(instruction.cycles)
+    }
+    fn bvs(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let jmp_success = bus.registers().has_v_flag();
+        let address = instruction.mode.addressing(bus)?;
+        if jmp_success {
+            bus.registers_mut().pc = address.0;
+        }
+        Some(get_branch_cycles(instruction, address.1, jmp_success))
+    }
+    fn bvc(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let jmp_success = !bus.registers().has_v_flag();
+        let address = instruction.mode.addressing(bus)?;
+        if jmp_success {
+            bus.registers_mut().pc = address.0;
+        }
+        Some(get_branch_cycles(instruction, address.1, jmp_success))
+    }
+    fn bpl(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let jmp_success = !bus.registers().has_n_flag();
+        let address = instruction.mode.addressing(bus)?;
+        if jmp_success {
+            bus.registers_mut().pc = address.0;
+        }
+        Some(get_branch_cycles(instruction, address.1, jmp_success))
+    }
+    fn rts(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let address = bus.stack_word()?;
+        bus.registers_mut().pc = address + 1;
+        Some(instruction.cycles)
+    }
+    #[allow(clippy::unnecessary_wraps)]
+    fn sei(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        bus.registers_mut().set_i_flag(true);
+        Some(instruction.cycles)
+    }
+    fn asl(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let address = instruction.mode.addressing(bus)?;
+        let mut data = instruction.mode.read(bus, address.0)?;
+        bus.registers_mut().set_c_flag(data >> 7 == 1);
+        data <<= 1;
+        bus.registers_mut().set_z_n_flags(data);
+        if !instruction.mode.write(bus, address.0, data) {
+            return None;
+        }
+        Some(instruction.cycles)
     }
 }
 
