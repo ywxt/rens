@@ -33,7 +33,9 @@ fn cpu_test() {
             assert!(check(capture, *cpu.cycles(), cpu.bus().registers()));
         }
 
-        cpu.clock().unwrap();
+        if let Err(error) = cpu.clock() {
+            panic!("{}", error);
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 use super::{AddressingMode, CpuBus, CpuError};
+use crate::cpu::{P_FLAGS_B, P_FLAGS_U};
 
 pub(super) struct InstructionProcessor;
 
@@ -39,6 +40,13 @@ enum Instruction {
     Rts(u8, InstructionInfo),
     Sei(u8, InstructionInfo),
     Asl(u8, InstructionInfo),
+    Sed(u8, InstructionInfo),
+    Php(u8, InstructionInfo),
+    Pla(u8, InstructionInfo),
+    And(u8, InstructionInfo),
+    Cmp(u8, InstructionInfo),
+    Cld(u8, InstructionInfo),
+    Pha(u8, InstructionInfo),
 }
 
 impl Instruction {
@@ -496,6 +504,186 @@ impl Instruction {
                     can_cross_page: false,
                 },
             ),
+
+            // SED
+            0xF8 => Self::Sed(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImplicitAddressingMode,
+                    cycles: 2,
+                    can_cross_page: false,
+                },
+            ),
+
+            // PHP
+            0x08 => Self::Php(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImplicitAddressingMode,
+                    cycles: 3,
+                    can_cross_page: false,
+                },
+            ),
+            // PLA
+            0x68 => Self::Pla(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImplicitAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+
+            // AND
+            0x29 => Self::And(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImmediateAddressingMode,
+                    cycles: 2,
+                    can_cross_page: false,
+                },
+            ),
+            0x25 => Self::And(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageAddressingMode,
+                    cycles: 3,
+                    can_cross_page: false,
+                },
+            ),
+            0x35 => Self::And(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0x2D => Self::And(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0x3D => Self::And(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: true,
+                },
+            ),
+            0x39 => Self::And(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteYAddressingMode,
+                    cycles: 4,
+                    can_cross_page: true,
+                },
+            ),
+            0x21 => Self::And(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::IndirectXAddressingMode,
+                    cycles: 6,
+                    can_cross_page: false,
+                },
+            ),
+            0x32 => Self::And(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::IndirectYAddressingMode,
+                    cycles: 5,
+                    can_cross_page: true,
+                },
+            ),
+
+            // CMP
+            0xC9 => Self::Cmp(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImmediateAddressingMode,
+                    cycles: 2,
+                    can_cross_page: false,
+                },
+            ),
+            0xC5 => Self::Cmp(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageAddressingMode,
+                    cycles: 3,
+                    can_cross_page: false,
+                },
+            ),
+            0xD5 => Self::Cmp(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0xCD => Self::Cmp(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0xDD => Self::Cmp(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: true,
+                },
+            ),
+            0xD9 => Self::Cmp(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteYAddressingMode,
+                    cycles: 4,
+                    can_cross_page: true,
+                },
+            ),
+            0xC1 => Self::Cmp(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::IndirectXAddressingMode,
+                    cycles: 6,
+                    can_cross_page: false,
+                },
+            ),
+            0xD1 => Self::Cmp(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::IndirectYAddressingMode,
+                    cycles: 5,
+                    can_cross_page: true,
+                },
+            ),
+            // CLD
+            0xD8 => Self::Cld(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImplicitAddressingMode,
+                    cycles: 2,
+                    can_cross_page: false,
+                },
+            ),
+
+            // PHA
+            0x48 => Self::Pha(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImplicitAddressingMode,
+                    cycles: 3,
+                    can_cross_page: false,
+                },
+            ),
             _ => None?,
         })
     }
@@ -522,6 +710,13 @@ impl Instruction {
             Instruction::Rts(_, ins) => Self::rts(bus, ins),
             Instruction::Asl(_, ins) => Self::asl(bus, ins),
             Instruction::Sei(_, ins) => Self::sei(bus, ins),
+            Instruction::Sed(_, ins) => Self::sed(bus, ins),
+            Instruction::Php(_, ins) => Self::php(bus, ins),
+            Instruction::Pla(_, ins) => Self::pla(bus, ins),
+            Instruction::And(_, ins) => Self::and(bus, ins),
+            Instruction::Cmp(_, ins) => Self::cmp(bus, ins),
+            Instruction::Cld(_, ins) => Self::cld(bus, ins),
+            Instruction::Pha(_, ins) => Self::pha(bus, ins),
         }
     }
 
@@ -648,7 +843,7 @@ impl Instruction {
         Some(get_branch_cycles(instruction, address.1, jmp_success))
     }
     fn rts(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = bus.stack_word()?;
+        let address = bus.stack_pop_word()?;
         bus.registers_mut().pc = address + 1;
         Some(instruction.cycles)
     }
@@ -664,6 +859,54 @@ impl Instruction {
         data <<= 1;
         bus.registers_mut().set_z_n_flags(data);
         if !instruction.mode.write(bus, address.0, data) {
+            return None;
+        }
+        Some(instruction.cycles)
+    }
+    #[allow(clippy::unnecessary_wraps)]
+    fn sed(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        bus.registers_mut().set_d_flag(true);
+        Some(instruction.cycles)
+    }
+
+    fn php(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        if !bus.stack_push(bus.registers().p | P_FLAGS_U | P_FLAGS_B) {
+            return None;
+        }
+        Some(instruction.cycles)
+    }
+
+    fn pla(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        bus.registers_mut().a = bus.stack_pop()?;
+        let a = bus.registers().a;
+        bus.registers_mut().set_z_n_flags(a);
+        Some(instruction.cycles)
+    }
+
+    fn and(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let address = instruction.mode.addressing(bus)?;
+        let data = instruction.mode.read(bus, address.0)?;
+        let result = bus.registers().a & data;
+        bus.registers_mut().a = result;
+        bus.registers_mut().set_z_n_flags(result);
+        Some(get_cross_page_cycles(instruction, address.1))
+    }
+    fn cmp(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let address = instruction.mode.addressing(bus)?;
+        let data = instruction.mode.read(bus, address.0)?;
+        let result = (bus.registers().a as i16 - data as i16) as i8;
+        bus.registers_mut().set_z_n_flags(result as u8);
+        bus.registers_mut().set_c_flag(result >= 0);
+        Some(get_cross_page_cycles(instruction, address.1))
+    }
+    #[allow(clippy::unnecessary_wraps)]
+    fn cld(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        bus.registers_mut().set_d_flag(false);
+        Some(instruction.cycles)
+    }
+
+    fn pha(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        if !bus.stack_push(bus.registers().a) {
             return None;
         }
         Some(instruction.cycles)

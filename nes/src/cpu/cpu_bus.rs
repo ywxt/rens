@@ -41,7 +41,7 @@ impl CpuBus {
     pub fn stack_pop(&mut self) -> Option<u8> {
         CpuStack::pop(&mut self.cpu_memory, &mut self.registers)
     }
-    pub fn stack_word(&mut self) -> Option<u16> {
+    pub fn stack_pop_word(&mut self) -> Option<u16> {
         CpuStack::pop_word(&mut self.cpu_memory, &mut self.registers)
     }
     pub fn registers(&self) -> &CpuRegisters {
