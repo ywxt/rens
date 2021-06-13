@@ -2,6 +2,7 @@ use crate::{memory::Memory, rom::Mapper};
 
 use super::{CpuMemory, CpuRegisters, CpuStack};
 
+#[derive(Debug)]
 pub struct CpuBus {
     cpu_memory: CpuMemory,
     mapper: Box<dyn Mapper>,

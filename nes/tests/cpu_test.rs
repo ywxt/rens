@@ -40,25 +40,28 @@ fn cpu_test() {
 }
 
 fn check(capture: Captures, cycles: u32, registers: &CpuRegisters) -> bool {
-    println!(
-        "{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}",
-        registers.pc, registers.a, registers.x, registers.y, registers.p, registers.sp, cycles
-    );
-    println!(
-        "{} A:{} X:{} Y:{} P:{} SP:{} CYC:{}",
-        &capture["ADDR"],
-        &capture["A"],
-        &capture["X"],
-        &capture["Y"],
-        &capture["P"],
-        &capture["SP"],
-        &capture["CYC"]
-    );
-    capture["ADDR"] == format!("{:04X}", registers.pc)
+    let result = capture["ADDR"] == format!("{:04X}", registers.pc)
         && capture["A"] == format!("{:02X}", registers.a)
         && capture["X"] == format!("{:02X}", registers.x)
         && capture["Y"] == format!("{:02X}", registers.y)
         && capture["P"] == format!("{:02X}", registers.p)
         && capture["SP"] == format!("{:02X}", registers.sp)
-        && capture["CYC"] == format!("{}", cycles)
+        && capture["CYC"] == format!("{}", cycles);
+    if !result {
+        println!(
+            "{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}",
+            registers.pc, registers.a, registers.x, registers.y, registers.p, registers.sp, cycles
+        );
+        println!(
+            "{} A:{} X:{} Y:{} P:{} SP:{} CYC:{}",
+            &capture["ADDR"],
+            &capture["A"],
+            &capture["X"],
+            &capture["Y"],
+            &capture["P"],
+            &capture["SP"],
+            &capture["CYC"]
+        );
+    }
+    result
 }

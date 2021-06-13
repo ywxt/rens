@@ -65,15 +65,15 @@ impl CpuRegisters {
         }
     }
     pub fn set_z_n_flags(&mut self, flag: u8) {
-        self.set_z_flag(flag);
-        self.set_n_flag(flag);
+        self.set_z_flag(flag == 0);
+        self.set_n_flag(flag >> 7 == 1);
     }
 
-    pub fn set_z_flag(&mut self, flag: u8) {
-        self.p.set_flag(P_FLAGS_Z, flag == 0);
+    pub fn set_z_flag(&mut self, when: bool) {
+        self.p.set_flag(P_FLAGS_Z, when);
     }
-    pub fn set_n_flag(&mut self, flag: u8) {
-        self.p.set_flag(P_FLAGS_N, flag >> 7 == 1);
+    pub fn set_n_flag(&mut self, when: bool) {
+        self.p.set_flag(P_FLAGS_N, when);
     }
     pub fn set_c_flag(&mut self, when: bool) {
         self.p.set_flag(P_FLAGS_C, when);

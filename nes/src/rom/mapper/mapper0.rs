@@ -2,6 +2,7 @@ use crate::memory::Memory;
 
 use super::Mapper;
 
+#[derive(Debug)]
 pub struct Mapper000 {
     prg_ram: Box<[u8; Self::MAPPER_SIZE_PRG_RAM as usize]>,
     prg_rom: Vec<u8>,

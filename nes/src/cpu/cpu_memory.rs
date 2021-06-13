@@ -1,5 +1,7 @@
 use crate::memory::Memory;
+use std::fmt::Debug;
 
+#[derive(Debug)]
 pub struct CpuMemory {
     ram: Box<[u8; Self::SIZE_CPU_MEMORY as usize]>,
 }
@@ -18,6 +20,13 @@ impl CpuMemory {
         }
     }
 }
+
+impl Default for CpuMemory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Memory for CpuMemory {
     fn read(&self, address: u16) -> Option<u8> {
         Some(match address {

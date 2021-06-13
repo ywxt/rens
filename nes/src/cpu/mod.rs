@@ -15,14 +15,13 @@ pub use error::*;
 use instruction::*;
 
 use std::{
-    cell::{Ref, RefCell},
+    cell::{Ref, RefCell,RefMut},
     rc::Rc,
 };
 
 use crate::clock::Clock;
 
-use std::cell::RefMut;
-
+#[derive(Debug)]
 pub struct Cpu {
     bus: Rc<RefCell<CpuBus>>,
     processor: InstructionProcessor,

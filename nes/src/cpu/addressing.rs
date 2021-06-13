@@ -24,23 +24,6 @@ pub enum AddressingType {
 }
 
 impl AddressingMode {
-    pub fn addressing_type(&self) -> AddressingType {
-        match self {
-            AddressingMode::ImplicitAddressingMode => AddressingType::Data,
-            AddressingMode::AccumulatorAddressingMode => AddressingType::Data,
-            AddressingMode::ImmediateAddressingMode => AddressingType::Data,
-            AddressingMode::AbsoluteAddressingMode => AddressingType::Address,
-            AddressingMode::AbsoluteXAddressingMode => AddressingType::Address,
-            AddressingMode::AbsoluteYAddressingMode => AddressingType::Address,
-            AddressingMode::ZeroPageAddressingMode => AddressingType::Address,
-            AddressingMode::ZeroPageXAddressingMode => AddressingType::Address,
-            AddressingMode::ZeroPageYAddressingMode => AddressingType::Address,
-            AddressingMode::RelativeAddressingMode => AddressingType::Address,
-            AddressingMode::IndirectAddressingMode => AddressingType::Address,
-            AddressingMode::IndirectXAddressingMode => AddressingType::Address,
-            AddressingMode::IndirectYAddressingMode => AddressingType::Address,
-        }
-    }
     /// 寻址成功返回 `Some((地址, 是否跨页))`
     pub fn addressing(&self, bus: &mut CpuBus) -> Option<(u16, bool)> {
         match self {
@@ -59,12 +42,29 @@ impl AddressingMode {
             AddressingMode::IndirectYAddressingMode => Self::indirect_y_addressing(bus),
         }
     }
+    pub fn addressing_type(&self) -> AddressingType {
+        match self {
+            AddressingMode::ImplicitAddressingMode => AddressingType::Data,
+            AddressingMode::AccumulatorAddressingMode => AddressingType::Data,
+            AddressingMode::ImmediateAddressingMode => AddressingType::Data,
+            AddressingMode::AbsoluteAddressingMode => AddressingType::Address,
+            AddressingMode::AbsoluteXAddressingMode => AddressingType::Address,
+            AddressingMode::AbsoluteYAddressingMode => AddressingType::Address,
+            AddressingMode::ZeroPageAddressingMode => AddressingType::Address,
+            AddressingMode::ZeroPageXAddressingMode => AddressingType::Address,
+            AddressingMode::ZeroPageYAddressingMode => AddressingType::Address,
+            AddressingMode::RelativeAddressingMode => AddressingType::Address,
+            AddressingMode::IndirectAddressingMode => AddressingType::Address,
+            AddressingMode::IndirectXAddressingMode => AddressingType::Address,
+            AddressingMode::IndirectYAddressingMode => AddressingType::Address,
+        }
+    }
 
-    pub fn read(&self, bus: &CpuBus, data: u16) -> Option<u8> {
+    pub fn read(&self, bus: &CpuBus, address: u16) -> Option<u8> {
         Some(if self.addressing_type() == AddressingType::Address {
-            bus.cpu_read(data)?
+            bus.cpu_read(address)?
         } else {
-            data as u8
+            address as u8
         })
     }
     pub fn write(&self, bus: &mut CpuBus, address: u16, data: u8) -> bool {
@@ -100,26 +100,26 @@ impl AddressingMode {
         let pc = bus.registers().pc;
         bus.registers_mut().pc += 2;
         let address = bus.cpu_read_word(pc)?;
-        let result = address + bus.registers().x as u16;
+        let result = (address as i32 + bus.registers().x as i32) as u16;
         Some((result, is_page_crossed(address, result)))
     }
     fn absolute_y_addressing(bus: &mut CpuBus) -> Option<(u16, bool)> {
         let pc = bus.registers().pc;
         bus.registers_mut().pc += 2;
         let address = bus.cpu_read_word(pc)?;
-        let result = address + bus.registers().y as u16;
+        let result = (address as i32 + bus.registers().y as i32) as u16;
         Some((result, is_page_crossed(address, result)))
     }
     fn zero_page_addressing(bus: &mut CpuBus) -> Option<(u16, bool)> {
         let pc = bus.registers().pc;
         bus.registers_mut().pc += 1;
-        Some(((bus.cpu_read(pc)? as u16) & 0x00FF, false))
+        Some((bus.cpu_read(pc)? as u16, false))
     }
     fn zero_page_x_addressing(bus: &mut CpuBus) -> Option<(u16, bool)> {
         let pc = bus.registers().pc;
         bus.registers_mut().pc += 1;
         Some((
-            ((bus.cpu_read(pc)? + bus.registers().x) as u16) & 0x00FF,
+            (bus.cpu_read(pc)? as u16 + bus.registers().x as u16) & 0x00FF,
             false,
         ))
     }
@@ -127,7 +127,7 @@ impl AddressingMode {
         let pc = bus.registers().pc;
         bus.registers_mut().pc += 1;
         Some((
-            ((bus.cpu_read(pc)? + bus.registers().y) as u16) & 0x00FF,
+            (bus.cpu_read(pc)? as u16 + bus.registers().y as u16) & 0x00FF,
             false,
         ))
     }
@@ -136,7 +136,7 @@ impl AddressingMode {
         bus.registers_mut().pc += 1;
         let offset = bus.cpu_read(pc)? as i8;
         let address = ((bus.registers().pc as i32) + (offset as i32)) as u16;
-        Some((address, is_page_crossed(address, pc)))
+        Some((address, is_page_crossed(address, bus.registers().pc)))
     }
     fn indirect_addressing(bus: &mut CpuBus) -> Option<(u16, bool)> {
         let pc = bus.registers().pc;
@@ -148,21 +148,22 @@ impl AddressingMode {
     }
     fn indirect_x_addressing(bus: &mut CpuBus) -> Option<(u16, bool)> {
         let pc = bus.registers().pc;
-        bus.registers_mut().pc += 2;
-        let indirect = bus.registers().x as u16 + bus.cpu_read(pc)? as u16;
+        bus.registers_mut().pc += 1;
+        let indirect = (bus.registers().x as u16 + bus.cpu_read(pc)? as u16) & 0x00FF;
         let low = bus.cpu_read(indirect)? as u16;
-        let high = bus.cpu_read(indirect + 1)? as u16;
+        let high = bus.cpu_read((indirect + 1) & 0x00FF)? as u16;
         let address = (high << 8) | low;
         Some((address, is_page_crossed(indirect, address)))
     }
     fn indirect_y_addressing(bus: &mut CpuBus) -> Option<(u16, bool)> {
         let pc = bus.registers().pc;
-        bus.registers_mut().pc += 2;
+        bus.registers_mut().pc += 1;
         let indirect = bus.cpu_read(pc)? as u16;
         let low = bus.cpu_read(indirect)? as u16;
-        let high = bus.cpu_read(indirect + 1)? as u16;
-        let address = ((high << 8) | low) + bus.registers().y as u16;
-        Some((address, is_page_crossed(indirect, address)))
+        let high = bus.cpu_read((indirect + 1) & 0x00FF)? as u16;
+        let address = (high << 8) | low;
+        let result = (address as i32 + bus.registers().y as i32) as u16;
+        Some((result, is_page_crossed(address, result)))
     }
 }
 
