@@ -1,13 +1,14 @@
 use crate::{memory::Memory, rom::Mapper};
 
 use super::{CpuMemory, CpuRegisters, CpuStack};
+use std::fmt::{Debug, Formatter};
 
-#[derive(Debug)]
 pub struct CpuBus {
     cpu_memory: CpuMemory,
     mapper: Box<dyn Mapper>,
     registers: CpuRegisters,
 }
+
 impl CpuBus {
     pub fn new(mapper: Box<dyn Mapper>) -> Self {
         Self {
@@ -50,5 +51,14 @@ impl CpuBus {
     }
     pub fn registers_mut(&mut self) -> &mut CpuRegisters {
         &mut self.registers
+    }
+}
+impl Debug for CpuBus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CpuBus")
+            .field("cpu_memory", &self.cpu_memory)
+            .field("mapper", &format!("Mapper{:03}", self.mapper.number()))
+            .field("registers", &self.registers)
+            .finish()
     }
 }

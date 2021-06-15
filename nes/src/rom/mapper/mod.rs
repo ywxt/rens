@@ -3,7 +3,6 @@ mod mapper0;
 use crate::memory::Memory;
 
 use self::mapper0::Mapper000;
-use std::fmt::Debug;
 
 pub fn make_mapper(number: u8, prg_rom: Vec<u8>, chr_rom: Vec<u8>) -> Option<Box<dyn Mapper>> {
     match number {
@@ -11,4 +10,6 @@ pub fn make_mapper(number: u8, prg_rom: Vec<u8>, chr_rom: Vec<u8>) -> Option<Box
         _ => None,
     }
 }
-pub trait Mapper: Memory + Debug {}
+pub trait Mapper: Memory {
+    fn number(&self) -> u8;
+}

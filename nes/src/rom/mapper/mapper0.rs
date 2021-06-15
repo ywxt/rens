@@ -36,7 +36,11 @@ impl Mapper000 {
     }
 }
 
-impl Mapper for Mapper000 {}
+impl Mapper for Mapper000 {
+    fn number(&self) -> u8 {
+        0
+    }
+}
 
 impl Memory for Mapper000 {
     fn read(&self, address: u16) -> Option<u8> {
