@@ -75,6 +75,7 @@ enum Instruction {
     Sty(u8, InstructionInfo),
     Inc(u8, InstructionInfo),
     Dec(u8, InstructionInfo),
+    Dop(u8, InstructionInfo),
 }
 
 impl Instruction {
@@ -1432,6 +1433,126 @@ impl Instruction {
                 },
             ),
 
+            // DOP
+            0x04 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageAddressingMode,
+                    cycles: 3,
+                    can_cross_page: false,
+                },
+            ),
+            0x14 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0x34 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0x44 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageAddressingMode,
+                    cycles: 3,
+                    can_cross_page: false,
+                },
+            ),
+
+            0x54 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0x64 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageAddressingMode,
+                    cycles: 3,
+                    can_cross_page: false,
+                },
+            ),
+
+            0x74 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+
+            0x80 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImmediateAddressingMode,
+                    cycles: 2,
+                    can_cross_page: false,
+                },
+            ),
+            0x82 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImmediateAddressingMode,
+                    cycles: 2,
+                    can_cross_page: false,
+                },
+            ),
+
+            0x89 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImmediateAddressingMode,
+                    cycles: 2,
+                    can_cross_page: false,
+                },
+            ),
+
+            0xC2 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImmediateAddressingMode,
+                    cycles: 2,
+                    can_cross_page: false,
+                },
+            ),
+            0xD4 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+
+            0xE2 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ImmediateAddressingMode,
+                    cycles: 2,
+                    can_cross_page: false,
+                },
+            ),
+
+            0xF4 => Self::Dop(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
             _ => None?,
         })
     }
@@ -1492,6 +1613,7 @@ impl Instruction {
             Instruction::Sty(_, ins) => Self::sty(bus, ins),
             Instruction::Inc(_, ins) => Self::inc(bus, ins),
             Instruction::Dec(_, ins) => Self::dec(bus, ins),
+            Instruction::Dop(_, ins) => Self::dop(bus, ins),
         }
     }
 
@@ -1522,12 +1644,13 @@ impl Instruction {
         bus.registers_mut().pc = address.0;
         Some(instruction.cycles)
     }
-    #[allow(clippy::unnecessary_wraps)]
-    fn nop(_bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+
+    fn nop(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         Some(instruction.cycles)
     }
-    #[allow(clippy::unnecessary_wraps)]
     fn sec(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         bus.registers_mut().set_c_flag(true);
         Some(instruction.cycles)
     }
@@ -1539,8 +1662,9 @@ impl Instruction {
         }
         Some(get_branch_cycles(instruction, address.1, jmp_success))
     }
-    #[allow(clippy::unnecessary_wraps)]
+
     fn clc(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         bus.registers_mut().set_c_flag(false);
         Some(instruction.cycles)
     }
@@ -1622,8 +1746,9 @@ impl Instruction {
         bus.registers_mut().pc = address + 1;
         Some(instruction.cycles)
     }
-    #[allow(clippy::unnecessary_wraps)]
+
     fn sei(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         bus.registers_mut().set_i_flag(true);
         Some(instruction.cycles)
     }
@@ -1638,8 +1763,9 @@ impl Instruction {
         }
         Some(instruction.cycles)
     }
-    #[allow(clippy::unnecessary_wraps)]
+
     fn sed(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         bus.registers_mut().set_d_flag(true);
         Some(instruction.cycles)
     }
@@ -1674,8 +1800,9 @@ impl Instruction {
         bus.registers_mut().set_c_flag(result >= 0);
         Some(get_cross_page_cycles(instruction, address.1))
     }
-    #[allow(clippy::unnecessary_wraps)]
+
     fn cld(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         bus.registers_mut().set_d_flag(false);
         Some(instruction.cycles)
     }
@@ -1713,8 +1840,8 @@ impl Instruction {
         Some(get_cross_page_cycles(instruction, address.1))
     }
 
-    #[allow(clippy::unnecessary_wraps)]
     fn clv(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         bus.registers_mut().set_v_flag(false);
         Some(instruction.cycles)
     }
@@ -1786,74 +1913,81 @@ impl Instruction {
         bus.registers_mut().set_z_n_flags(result as u8);
         Some(get_cross_page_cycles(instruction, address.1))
     }
-    #[allow(clippy::unnecessary_wraps)]
+
     fn iny(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         let result = (bus.registers().y as i16 + 1) as u8;
         bus.registers_mut().y = result;
         bus.registers_mut().set_z_n_flags(result);
         Some(instruction.cycles)
     }
-    #[allow(clippy::unnecessary_wraps)]
+
     fn inx(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         let result = (bus.registers().x as i16 + 1) as u8;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
         Some(instruction.cycles)
     }
-    #[allow(clippy::unnecessary_wraps)]
+
     fn dex(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         let result = (bus.registers().x as i16 - 1) as u8;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
         Some(instruction.cycles)
     }
-    #[allow(clippy::unnecessary_wraps)]
+
     fn dey(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         let result = (bus.registers().y as i16 - 1) as u8;
         bus.registers_mut().y = result;
         bus.registers_mut().set_z_n_flags(result);
         Some(instruction.cycles)
     }
-    #[allow(clippy::unnecessary_wraps)]
+
     fn tax(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         let result = bus.registers().a;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
         Some(instruction.cycles)
     }
 
-    #[allow(clippy::unnecessary_wraps)]
     fn tay(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         let result = bus.registers().a;
         bus.registers_mut().y = result;
         bus.registers_mut().set_z_n_flags(result);
         Some(instruction.cycles)
     }
 
-    #[allow(clippy::unnecessary_wraps)]
     fn txa(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         let result = bus.registers().x;
         bus.registers_mut().a = result;
         bus.registers_mut().set_z_n_flags(result);
         Some(instruction.cycles)
     }
 
-    #[allow(clippy::unnecessary_wraps)]
     fn tya(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         let result = bus.registers().y;
         bus.registers_mut().a = result;
         bus.registers_mut().set_z_n_flags(result);
         Some(instruction.cycles)
     }
-    #[allow(clippy::unnecessary_wraps)]
+
     fn tsx(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         let result = bus.registers().sp;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
         Some(instruction.cycles)
     }
-    #[allow(clippy::unnecessary_wraps)]
+
     fn txs(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         let result = bus.registers().x;
         bus.registers_mut().sp = result;
         Some(instruction.cycles)
@@ -1926,6 +2060,11 @@ impl Instruction {
             return None;
         }
         bus.registers_mut().set_z_n_flags(result);
+        Some(instruction.cycles)
+    }
+
+    fn dop(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         Some(instruction.cycles)
     }
 }
