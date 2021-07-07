@@ -76,6 +76,8 @@ enum Instruction {
     Inc(u8, InstructionInfo),
     Dec(u8, InstructionInfo),
     Dop(u8, InstructionInfo),
+    Top(u8, InstructionInfo),
+    Lax(u8, InstructionInfo),
 }
 
 impl Instruction {
@@ -1553,6 +1555,115 @@ impl Instruction {
                     can_cross_page: false,
                 },
             ),
+
+            // Top
+            0x0C => Self::Top(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0x1C => Self::Top(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: true,
+                },
+            ),
+            0x3C => Self::Top(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: true,
+                },
+            ),
+            0x5C => Self::Top(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: true,
+                },
+            ),
+            0x7C => Self::Top(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: true,
+                },
+            ),
+            0xDC => Self::Top(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: true,
+                },
+            ),
+            0xFC => Self::Top(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteXAddressingMode,
+                    cycles: 4,
+                    can_cross_page: true,
+                },
+            ),
+
+            // LAX
+            0xA7 => Self::Lax(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageAddressingMode,
+                    cycles: 3,
+                    can_cross_page: false,
+                },
+            ),
+            0xB7 => Self::Lax(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageYAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0xAF => Self::Lax(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0xBF => Self::Lax(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteYAddressingMode,
+                    cycles: 4,
+                    can_cross_page: true,
+                },
+            ),
+            0xA3 => Self::Lax(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::IndirectXAddressingMode,
+                    cycles: 6,
+                    can_cross_page: false,
+                },
+            ),
+            0xB3 => Self::Lax(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::IndirectYAddressingMode,
+                    cycles: 5,
+                    can_cross_page: true,
+                },
+            ),
+
             _ => None?,
         })
     }
@@ -1614,6 +1725,8 @@ impl Instruction {
             Instruction::Inc(_, ins) => Self::inc(bus, ins),
             Instruction::Dec(_, ins) => Self::dec(bus, ins),
             Instruction::Dop(_, ins) => Self::dop(bus, ins),
+            Instruction::Top(_, ins) => Self::top(bus, ins),
+            Instruction::Lax(_, ins) => Self::lax(bus, ins),
         }
     }
 
@@ -2066,6 +2179,19 @@ impl Instruction {
     fn dop(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
         instruction.mode.addressing(bus)?;
         Some(instruction.cycles)
+    }
+    fn top(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let (_, page_crossed) = instruction.mode.addressing(bus)?;
+        Some(get_cross_page_cycles(instruction, page_crossed))
+    }
+
+    fn lax(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let (address, page_crossed) = instruction.mode.addressing(bus)?;
+        let data = instruction.mode.read(bus, address)?;
+        bus.registers_mut().a = data;
+        bus.registers_mut().x = data;
+        bus.registers_mut().set_z_n_flags(data);
+        Some(get_cross_page_cycles(instruction, page_crossed))
     }
 }
 
