@@ -14,10 +14,7 @@ pub use cpu_stack::*;
 pub use error::*;
 use instruction::*;
 
-use std::{
-    cell::{Ref, RefCell,RefMut},
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
 use crate::clock::Clock;
 
@@ -108,23 +105,6 @@ impl Cpu {
         self.defer_cycles = self.processor.process(op, &mut bus)?;
         Ok(())
     }
-
-    #[cfg(debug_assertions)]
-    pub fn bus(&self) -> Ref<'_, CpuBus> {
-        self.bus.borrow()
-    }
-    #[cfg(debug_assertions)]
-    pub fn bus_mut(&self) -> RefMut<'_, CpuBus> {
-        self.bus.borrow_mut()
-    }
-    #[cfg(debug_assertions)]
-    pub fn cycles(&self) -> &u32 {
-        &self.cycles
-    }
-    #[cfg(debug_assertions)]
-    pub fn defer_cycles(&self) -> &u32 {
-        &self.defer_cycles
-    }
 }
 
 impl Clock for Cpu {
@@ -136,5 +116,83 @@ impl Clock for Cpu {
         self.cycles += 1;
         self.defer_cycles -= 1;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{Cpu, CpuBus, CpuRegisters};
+    use crate::clock::Clock;
+    use crate::rom::{make_mapper, NesLoader};
+    use regex::{Captures, Regex};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    #[test]
+    fn cpu_test() {
+        let loader =
+            NesLoader::from_slice(&std::fs::read("test_data/nestest.nes").unwrap()).unwrap();
+        let bus = Rc::new(RefCell::new(CpuBus::new(
+            make_mapper(
+                loader.header().mapper_number(),
+                loader.prg().to_vec(),
+                loader.chr().to_vec(),
+            )
+            .unwrap(),
+        )));
+        let mut cpu = Cpu::new(bus);
+        cpu.reset();
+        cpu.bus.borrow_mut().registers_mut().pc = 0xC000;
+        let regex = Regex::new(
+            r"(?P<ADDR>[A-Z0-9]{4})\s+([A-Z0-9]{2} )+\s*[*#$=@,()A-Z0-9 ]+A:(?P<A>[A-Z0-9]{2}) X:(?P<X>[A-Z0-9]{2}) Y:(?P<Y>[A-Z0-9]{2}) P:(?P<P>[A-Z0-9]{2}) SP:(?P<SP>[A-Z0-9]{2}) PPU:\s*(?P<PPU>\d+,\s*\d+) CYC:(?P<CYC>\d+)",
+        ).unwrap();
+        let log = std::fs::read_to_string("test_data/nestest.log").unwrap();
+        let mut captures = regex.captures_iter(&log);
+        loop {
+            if cpu.defer_cycles == 0u32 {
+                let capture = match captures.next() {
+                    None => break,
+                    Some(capture) => capture,
+                };
+                assert!(check(capture, cpu.cycles, cpu.bus.borrow().registers()));
+            }
+
+            if let Err(error) = cpu.clock() {
+                panic!("{}", error);
+            }
+        }
+    }
+
+    fn check(capture: Captures, cycles: u32, registers: &CpuRegisters) -> bool {
+        let result = capture["ADDR"] == format!("{:04X}", registers.pc)
+            && capture["A"] == format!("{:02X}", registers.a)
+            && capture["X"] == format!("{:02X}", registers.x)
+            && capture["Y"] == format!("{:02X}", registers.y)
+            && capture["P"] == format!("{:02X}", registers.p)
+            && capture["SP"] == format!("{:02X}", registers.sp)
+            && capture["CYC"] == format!("{}", cycles);
+        if !result {
+            println!(
+                "{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}",
+                registers.pc,
+                registers.a,
+                registers.x,
+                registers.y,
+                registers.p,
+                registers.sp,
+                cycles
+            );
+            println!(
+                "{} A:{} X:{} Y:{} P:{} SP:{} CYC:{}",
+                &capture["ADDR"],
+                &capture["A"],
+                &capture["X"],
+                &capture["Y"],
+                &capture["P"],
+                &capture["SP"],
+                &capture["CYC"]
+            );
+        }
+        result
     }
 }
