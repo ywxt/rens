@@ -78,6 +78,7 @@ enum Instruction {
     Dop(u8, InstructionInfo),
     Top(u8, InstructionInfo),
     Lax(u8, InstructionInfo),
+    Aax(u8, InstructionInfo),
 }
 
 impl Instruction {
@@ -1664,6 +1665,40 @@ impl Instruction {
                 },
             ),
 
+            // AAX
+            0x87 => Self::Aax(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageAddressingMode,
+                    cycles: 3,
+                    can_cross_page: false,
+                },
+            ),
+            0x97 => Self::Aax(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::ZeroPageYAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+            0x83 => Self::Aax(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::IndirectXAddressingMode,
+                    cycles: 6,
+                    can_cross_page: false,
+                },
+            ),
+            0x8F => Self::Aax(
+                ins,
+                InstructionInfo {
+                    mode: AddressingMode::AbsoluteAddressingMode,
+                    cycles: 4,
+                    can_cross_page: false,
+                },
+            ),
+
             _ => None?,
         })
     }
@@ -1727,6 +1762,7 @@ impl Instruction {
             Instruction::Dop(_, ins) => Self::dop(bus, ins),
             Instruction::Top(_, ins) => Self::top(bus, ins),
             Instruction::Lax(_, ins) => Self::lax(bus, ins),
+            Instruction::Aax(_, ins) => Self::aax(bus, ins),
         }
     }
 
@@ -2191,6 +2227,15 @@ impl Instruction {
         bus.registers_mut().a = data;
         bus.registers_mut().x = data;
         bus.registers_mut().set_z_n_flags(data);
+        Some(get_cross_page_cycles(instruction, page_crossed))
+    }
+
+    fn aax(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        let (address, page_crossed) = instruction.mode.addressing(bus)?;
+        let data = bus.registers().a & bus.registers().x;
+        if !bus.cpu_write(address, data) {
+            return None;
+        }
         Some(get_cross_page_cycles(instruction, page_crossed))
     }
 }
