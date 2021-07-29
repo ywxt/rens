@@ -6,17 +6,13 @@ mod cpu_stack;
 mod error;
 mod instruction;
 
-pub use addressing::*;
 pub use cpu_bus::*;
-pub use cpu_memory::*;
-pub use cpu_register::*;
-pub use cpu_stack::*;
 pub use error::*;
-use instruction::*;
-
-use std::{cell::RefCell, rc::Rc};
 
 use crate::clock::Clock;
+use cpu_register::*;
+use instruction::*;
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug)]
 pub struct Cpu {

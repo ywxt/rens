@@ -1,6 +1,6 @@
 use crate::memory::Memory;
 
-use super::{CpuMemory, CpuRegisters};
+use super::{cpu_memory::CpuMemory, CpuRegisters};
 
 pub struct CpuStack;
 
@@ -16,7 +16,7 @@ impl CpuStack {
         }
     }
     pub fn push_word(memory: &mut CpuMemory, registers: &mut CpuRegisters, data: u16) -> bool {
-        Self::push(memory, registers,(data >> 8) as u8)
+        Self::push(memory, registers, (data >> 8) as u8)
             && Self::push(memory, registers, (data & 0x00FF) as u8)
     }
     pub fn pop(memory: &mut CpuMemory, registers: &mut CpuRegisters) -> Option<u8> {
