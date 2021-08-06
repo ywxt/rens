@@ -1,6 +1,6 @@
 use crate::{memory::Memory, rom::Mapper};
 
-use super::{cpu_memory::CpuMemory, cpu_stack::CpuStack, CpuRegisters};
+use super::{cpu_memory::CpuMemory, cpu_stack, CpuRegisters};
 use std::fmt::{Debug, Formatter};
 
 pub struct CpuBus {
@@ -35,16 +35,16 @@ impl CpuBus {
         self.cpu_memory.write_word(address, data) || self.mapper.write_word(address, data)
     }
     pub fn stack_push(&mut self, data: u8) -> bool {
-        CpuStack::push(&mut self.cpu_memory, &mut self.registers, data)
+        cpu_stack::push(&mut self.cpu_memory, &mut self.registers, data)
     }
     pub fn stack_push_word(&mut self, data: u16) -> bool {
-        CpuStack::push_word(&mut self.cpu_memory, &mut self.registers, data)
+        cpu_stack::push_word(&mut self.cpu_memory, &mut self.registers, data)
     }
     pub fn stack_pop(&mut self) -> Option<u8> {
-        CpuStack::pop(&mut self.cpu_memory, &mut self.registers)
+        cpu_stack::pop(&mut self.cpu_memory, &mut self.registers)
     }
     pub fn stack_pop_word(&mut self) -> Option<u16> {
-        CpuStack::pop_word(&mut self.cpu_memory, &mut self.registers)
+        cpu_stack::pop_word(&mut self.cpu_memory, &mut self.registers)
     }
     pub fn registers(&self) -> &CpuRegisters {
         &self.registers
