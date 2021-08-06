@@ -44,25 +44,31 @@ impl Mapper for Mapper000 {
 
 impl Memory for Mapper000 {
     fn read(&self, address: u16) -> Option<u8> {
-        Some(match address {
+        match address {
             Self::ADDRESS_CHR_BANK_START..=Self::ADDRESS_CHR_BANK_END => {
-                self.chr_rom[address as usize]
+                self.chr_rom.get(address as usize).copied()
             }
-            Self::ADDRESS_PRG_RAM_BANK_START..=Self::ADDRESS_PRG_RAM_BANK_END => {
-                self.prg_ram[(address - Self::ADDRESS_PRG_RAM_BANK_START) as usize]
-            }
-            Self::ADDRESS_PRG_BANK_FIRST_START..=Self::ADDRESS_PRG_BANK_FIRST_END => {
-                self.prg_rom[(address - Self::ADDRESS_PRG_BANK_FIRST_START) as usize]
-            }
+            Self::ADDRESS_PRG_RAM_BANK_START..=Self::ADDRESS_PRG_RAM_BANK_END => self
+                .prg_ram
+                .get((address - Self::ADDRESS_PRG_RAM_BANK_START) as usize)
+                .copied(),
+            Self::ADDRESS_PRG_BANK_FIRST_START..=Self::ADDRESS_PRG_BANK_FIRST_END => self
+                .prg_rom
+                .get((address - Self::ADDRESS_PRG_BANK_FIRST_START) as usize)
+                .copied(),
             Self::ADDRESS_PRG_BANK_SECOND_START..=Self::ADDRESS_PRG_BANK_SECOND_END => {
                 if self.nrom_128 {
-                    self.prg_rom[(address - Self::ADDRESS_PRG_BANK_SECOND_START) as usize]
+                    self.prg_rom
+                        .get((address - Self::ADDRESS_PRG_BANK_SECOND_START) as usize)
+                        .copied()
                 } else {
-                    self.prg_rom[(address - Self::ADDRESS_PRG_BANK_FIRST_START) as usize]
+                    self.prg_rom
+                        .get((address - Self::ADDRESS_PRG_BANK_FIRST_START) as usize)
+                        .copied()
                 }
             }
             _ => return None,
-        })
+        }
     }
 
     fn write(&mut self, address: u16, data: u8) -> bool {

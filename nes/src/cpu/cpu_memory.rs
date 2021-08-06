@@ -29,15 +29,16 @@ impl Default for CpuMemory {
 
 impl Memory for CpuMemory {
     fn read(&self, address: u16) -> Option<u8> {
-        Some(match address {
+        match address {
             // CPU RAM
-            Self::ADDRESS_CPU_MEMORY_START..=Self::ADDRESS_CPU_MEMORY_END => {
-                self.ram[(address & Self::NUMBER_CPU_MEMORY_MIRROR) as usize]
-            }
+            Self::ADDRESS_CPU_MEMORY_START..=Self::ADDRESS_CPU_MEMORY_END => self
+                .ram
+                .get((address & Self::NUMBER_CPU_MEMORY_MIRROR) as usize)
+                .copied(),
             // // IO 寄存器，暂不实现
-            Self::ADDRESS_IO_REGISTER_START..=Self::ADDRESS_IO_REGISTER_END => 0,
+            Self::ADDRESS_IO_REGISTER_START..=Self::ADDRESS_IO_REGISTER_END => Some(0),
             _ => return None,
-        })
+        }
     }
 
     fn write(&mut self, address: u16, data: u8) -> bool {
