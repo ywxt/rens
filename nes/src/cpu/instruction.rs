@@ -1919,6 +1919,7 @@ impl Instruction {
     }
 
     fn php(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         if !bus.stack_push(bus.registers().p | P_FLAGS_U | P_FLAGS_B) {
             return None;
         }
@@ -1926,6 +1927,7 @@ impl Instruction {
     }
 
     fn pla(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         bus.registers_mut().a = bus.stack_pop()?;
         let a = bus.registers().a;
         bus.registers_mut().set_z_n_flags(a);
@@ -1956,6 +1958,7 @@ impl Instruction {
     }
 
     fn pha(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         if !bus.stack_push(bus.registers().a) {
             return None;
         }
@@ -1963,6 +1966,7 @@ impl Instruction {
     }
 
     fn plp(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         let p = bus.stack_pop()?;
         bus.registers_mut().p = p;
         bus.registers_mut().set_u_flag(true);
@@ -2142,6 +2146,7 @@ impl Instruction {
     }
 
     fn rti(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+        instruction.mode.addressing(bus)?;
         let result = bus.stack_pop()? | P_FLAGS_U;
         bus.registers_mut().p = result;
         bus.registers_mut().pc = bus.stack_pop_word()?;
