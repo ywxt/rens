@@ -91,8 +91,8 @@ mod tests {
         let ines1 = NesLoader::try_from(&bytes1[..]).unwrap();
         assert_eq!(ines1.header().prg_size(), 0x08);
         assert_eq!(ines1.header().chr_size(), 0x10);
-        assert_eq!(ines1.header().nes_2_format(), false);
-        assert_eq!(ines1.header().trainer(), false);
+        assert!(!ines1.header().nes_2_format());
+        assert!(!ines1.header().trainer());
         assert_eq!(ines1.header().mapper_number(), 0x17);
         assert!(ines1.trainer().is_empty());
         assert_eq!(
@@ -113,8 +113,8 @@ mod tests {
         // let ines2 = Ines::try_from(&bytes2[..])?;
         assert_eq!(ines1.header().prg_size(), 0x20);
         assert_eq!(ines1.header().chr_size(), 0x40);
-        assert_eq!(ines1.header().nes_2_format(), false);
-        assert_eq!(ines1.header().trainer(), false);
+        assert!(!ines1.header().nes_2_format());
+        assert!(!ines1.header().trainer());
         assert_eq!(ines1.header().mapper_number(), 0x2D);
         assert!(ines1.trainer().is_empty());
         assert_eq!(
