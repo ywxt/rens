@@ -1,2015 +1,1871 @@
 use super::{addressing::AddressingMode, CpuBus, CpuError, P_FLAGS_B, P_FLAGS_C, P_FLAGS_U};
+use crate::memory::Result;
 
 #[derive(Debug)]
 pub(super) struct InstructionProcessor;
 
 impl InstructionProcessor {
-    pub fn process(&self, ins: u8, bus: &mut CpuBus) -> Result<u32, CpuError> {
+    pub fn process(&self, ins: u8, bus: &mut CpuBus) -> std::result::Result<u32, CpuError> {
         let instruction =
-            Instruction::from_instruction(ins).ok_or(CpuError::UnknownInstructionError(ins))?;
-        instruction
-            .invoke(bus)
-            .ok_or(CpuError::InvokeInstructionError(ins))
+            InstructionInfo::from_code(ins).ok_or(CpuError::UnknownInstruction(ins))?;
+        instruction.invoke(bus).map_err(|e| e.into())
     }
 }
 
+#[derive(Debug)]
+enum InstructionType {
+    Common,
+    CrossingPage,
+    Branch,
+}
+
+#[derive(Debug)]
+enum Instruction {
+    Jmp,
+    Ldx,
+    Stx,
+    Jsr,
+    Nop,
+    Sec,
+    Bcs,
+    Clc,
+    Bcc,
+    Lda,
+    Beq,
+    Bne,
+    Sta,
+    Bit,
+    Bvs,
+    Bvc,
+    Bpl,
+    Rts,
+    Sei,
+    Asl,
+    Sed,
+    Php,
+    Pla,
+    And,
+    Cmp,
+    Cld,
+    Pha,
+    Plp,
+    Bmi,
+    Ora,
+    Clv,
+    Eor,
+    Adc,
+    Ldy,
+    Cpy,
+    Cpx,
+    Sbc,
+    Iny,
+    Inx,
+    Dey,
+    Dex,
+    Tay,
+    Tax,
+    Txa,
+    Tya,
+    Tsx,
+    Txs,
+    Rti,
+    Lsr,
+    Ror,
+    Rol,
+    Sty,
+    Inc,
+    Dec,
+    Dop,
+    Top,
+    Lax,
+    Aax,
+    Dcp,
+}
+#[derive(Debug)]
 struct InstructionInfo {
+    code: u8,
+    ins: Instruction,
     mode: AddressingMode,
     cycles: u32,
-    can_cross_page: bool,
+    ins_type: InstructionType,
 }
 
-enum Instruction {
-    Jmp(u8, InstructionInfo),
-    Ldx(u8, InstructionInfo),
-    Stx(u8, InstructionInfo),
-    Jsr(u8, InstructionInfo),
-    Nop(u8, InstructionInfo),
-    Sec(u8, InstructionInfo),
-    Bcs(u8, InstructionInfo),
-    Clc(u8, InstructionInfo),
-    Bcc(u8, InstructionInfo),
-    Lda(u8, InstructionInfo),
-    Beq(u8, InstructionInfo),
-    Bne(u8, InstructionInfo),
-    Sta(u8, InstructionInfo),
-    Bit(u8, InstructionInfo),
-    Bvs(u8, InstructionInfo),
-    Bvc(u8, InstructionInfo),
-    Bpl(u8, InstructionInfo),
-    Rts(u8, InstructionInfo),
-    Sei(u8, InstructionInfo),
-    Asl(u8, InstructionInfo),
-    Sed(u8, InstructionInfo),
-    Php(u8, InstructionInfo),
-    Pla(u8, InstructionInfo),
-    And(u8, InstructionInfo),
-    Cmp(u8, InstructionInfo),
-    Cld(u8, InstructionInfo),
-    Pha(u8, InstructionInfo),
-    Plp(u8, InstructionInfo),
-    Bmi(u8, InstructionInfo),
-    Ora(u8, InstructionInfo),
-    Clv(u8, InstructionInfo),
-    Eor(u8, InstructionInfo),
-    Adc(u8, InstructionInfo),
-    Ldy(u8, InstructionInfo),
-    Cpy(u8, InstructionInfo),
-    Cpx(u8, InstructionInfo),
-    Sbc(u8, InstructionInfo),
-    Iny(u8, InstructionInfo),
-    Inx(u8, InstructionInfo),
-    Dey(u8, InstructionInfo),
-    Dex(u8, InstructionInfo),
-    Tay(u8, InstructionInfo),
-    Tax(u8, InstructionInfo),
-    Txa(u8, InstructionInfo),
-    Tya(u8, InstructionInfo),
-    Tsx(u8, InstructionInfo),
-    Txs(u8, InstructionInfo),
-    Rti(u8, InstructionInfo),
-    Lsr(u8, InstructionInfo),
-    Ror(u8, InstructionInfo),
-    Rol(u8, InstructionInfo),
-    Sty(u8, InstructionInfo),
-    Inc(u8, InstructionInfo),
-    Dec(u8, InstructionInfo),
-    Dop(u8, InstructionInfo),
-    Top(u8, InstructionInfo),
-    Lax(u8, InstructionInfo),
-    Aax(u8, InstructionInfo),
-}
-
-impl Instruction {
+impl InstructionInfo {
     /// 返回寻址模式和时钟周期
-    fn from_instruction(ins: u8) -> Option<Self> {
+    fn from_code(ins: u8) -> Option<Self> {
         Some(match ins {
             //JMP
-            0x4C => Self::Jmp(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0x6C => Self::Jmp(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectAddressingMode,
-                    cycles: 5,
-                    can_cross_page: false,
-                },
-            ),
+            0x4C => Self {
+                code: ins,
+                ins: Instruction::Jmp,
+                mode: AddressingMode::Absolute,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+
+            0x6C => Self {
+                code: ins,
+                ins: Instruction::Jmp,
+                mode: AddressingMode::Indirect,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
 
             // LDX
-            0xA2 => Self::Ldx(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0xAE => Self::Ldx(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0xA6 => Self::Ldx(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0xB6 => Self::Ldx(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageYAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0xBE => Self::Ldx(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteYAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
+            0xA2 => Self {
+                code: ins,
+                ins: Instruction::Ldx,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0xAE => Self {
+                code: ins,
+                ins: Instruction::Ldx,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0xA6 => Self {
+                code: ins,
+                ins: Instruction::Ldx,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0xB6 => Self {
+                code: ins,
+                ins: Instruction::Ldx,
+                mode: AddressingMode::ZeroPageY,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0xBE => Self {
+                code: ins,
+                ins: Instruction::Ldx,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
 
             // STX
-            0x86 => Self::Stx(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0x8E => Self::Stx(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x96 => Self::Stx(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageYAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
+            0x86 => Self {
+                code: ins,
+                ins: Instruction::Stx,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0x8E => Self {
+                code: ins,
+                ins: Instruction::Stx,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x96 => Self {
+                code: ins,
+                ins: Instruction::Stx,
+                mode: AddressingMode::ZeroPageY,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
 
             // JSR
-            0x20 => Self::Jsr(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
+            0x20 => Self {
+                code: ins,
+                ins: Instruction::Jsr,
+                mode: AddressingMode::Absolute,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
 
             //NOP
-            0x1A => Self::Nop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0x3A => Self::Nop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0x5A => Self::Nop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0x7A => Self::Nop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0xDA => Self::Nop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0xEA => Self::Nop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0xFA => Self::Nop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0x1A => Self {
+                code: ins,
+                ins: Instruction::Nop,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0x3A => Self {
+                code: ins,
+                ins: Instruction::Nop,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0x5A => Self {
+                code: ins,
+                ins: Instruction::Nop,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0x7A => Self {
+                code: ins,
+                ins: Instruction::Nop,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0xDA => Self {
+                code: ins,
+                ins: Instruction::Nop,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0xEA => Self {
+                code: ins,
+                ins: Instruction::Nop,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0xFA => Self {
+                code: ins,
+                ins: Instruction::Nop,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // SEC
-            0x38 => Self::Sec(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0x38 => Self {
+                code: ins,
+                ins: Instruction::Sec,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // BCS
-            0xB0 => Self::Bcs(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::RelativeAddressingMode,
-                    cycles: 2,
-                    can_cross_page: true,
-                },
-            ),
+            0xB0 => Self {
+                code: ins,
+                ins: Instruction::Bcs,
+                mode: AddressingMode::Relative,
+                cycles: 2,
+                ins_type: InstructionType::Branch,
+            },
 
             // CLC
-            0x18 => Self::Clc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0x18 => Self {
+                code: ins,
+                ins: Instruction::Clc,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // BCC
-            0x90 => Self::Bcc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::RelativeAddressingMode,
-                    cycles: 2,
-                    can_cross_page: true,
-                },
-            ),
+            0x90 => Self {
+                code: ins,
+                ins: Instruction::Bcc,
+                mode: AddressingMode::Relative,
+                cycles: 2,
+                ins_type: InstructionType::Branch,
+            },
 
             // LDA
-            0xA9 => Self::Lda(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0xA5 => Self::Lda(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0xB5 => Self::Lda(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0xAD => Self::Lda(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0xBD => Self::Lda(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0xB9 => Self::Lda(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteYAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0xA1 => Self::Lda(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0xB1 => Self::Lda(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectYAddressingMode,
-                    cycles: 5,
-                    can_cross_page: true,
-                },
-            ),
+            0xA9 => Self {
+                code: ins,
+                ins: Instruction::Lda,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0xA5 => Self {
+                code: ins,
+                ins: Instruction::Lda,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0xB5 => Self {
+                code: ins,
+                ins: Instruction::Lda,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0xAD => Self {
+                code: ins,
+                ins: Instruction::Lda,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0xBD => Self {
+                code: ins,
+                ins: Instruction::Lda,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0xB9 => Self {
+                code: ins,
+                ins: Instruction::Lda,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0xA1 => Self {
+                code: ins,
+                ins: Instruction::Lda,
+                mode: AddressingMode::IndirectX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0xB1 => Self {
+                code: ins,
+                ins: Instruction::Lda,
+                mode: AddressingMode::IndirectY,
+                cycles: 5,
+                ins_type: InstructionType::CrossingPage,
+            },
 
             // BEQ
-            0xF0 => Self::Beq(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::RelativeAddressingMode,
-                    cycles: 2,
-                    can_cross_page: true,
-                },
-            ),
+            0xF0 => Self {
+                code: ins,
+                ins: Instruction::Beq,
+                mode: AddressingMode::Relative,
+                cycles: 2,
+                ins_type: InstructionType::Branch,
+            },
 
             // BNE
-            0xD0 => Self::Bne(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::RelativeAddressingMode,
-                    cycles: 2,
-                    can_cross_page: true,
-                },
-            ),
+            0xD0 => Self {
+                code: ins,
+                ins: Instruction::Bne,
+                mode: AddressingMode::Relative,
+                cycles: 2,
+                ins_type: InstructionType::Branch,
+            },
 
             // STA
-            0x85 => Self::Sta(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0x95 => Self::Sta(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x8D => Self::Sta(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x9D => Self::Sta(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 5,
-                    can_cross_page: false,
-                },
-            ),
-            0x99 => Self::Sta(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteYAddressingMode,
-                    cycles: 5,
-                    can_cross_page: false,
-                },
-            ),
-            0x81 => Self::Sta(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0x91 => Self::Sta(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectYAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
+            0x85 => Self {
+                code: ins,
+                ins: Instruction::Sta,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0x95 => Self {
+                code: ins,
+                ins: Instruction::Sta,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x8D => Self {
+                code: ins,
+                ins: Instruction::Sta,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x9D => Self {
+                code: ins,
+                ins: Instruction::Sta,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
+            0x99 => Self {
+                code: ins,
+                ins: Instruction::Sta,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
+            0x81 => Self {
+                code: ins,
+                ins: Instruction::Sta,
+                mode: AddressingMode::IndirectX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x91 => Self {
+                code: ins,
+                ins: Instruction::Sta,
+                mode: AddressingMode::IndirectY,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
 
             // BIT
-            0x24 => Self::Bit(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0x2C => Self::Bit(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
+            0x24 => Self {
+                code: ins,
+                ins: Instruction::Bit,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0x2C => Self {
+                code: ins,
+                ins: Instruction::Bit,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
 
             // BVS
-            0x70 => Self::Bvs(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::RelativeAddressingMode,
-                    cycles: 2,
-                    can_cross_page: true,
-                },
-            ),
+            0x70 => Self {
+                code: ins,
+                ins: Instruction::Bvs,
+                mode: AddressingMode::Relative,
+                cycles: 2,
+                ins_type: InstructionType::Branch,
+            },
 
             // BVC
-            0x50 => Self::Bvc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::RelativeAddressingMode,
-                    cycles: 2,
-                    can_cross_page: true,
-                },
-            ),
+            0x50 => Self {
+                code: ins,
+                ins: Instruction::Bvc,
+                mode: AddressingMode::Relative,
+                cycles: 2,
+                ins_type: InstructionType::Branch,
+            },
 
             // BPL
-            0x10 => Self::Bpl(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::RelativeAddressingMode,
-                    cycles: 2,
-                    can_cross_page: true,
-                },
-            ),
+            0x10 => Self {
+                code: ins,
+                ins: Instruction::Bpl,
+                mode: AddressingMode::Relative,
+                cycles: 2,
+                ins_type: InstructionType::Branch,
+            },
 
             // RTS
-            0x60 => Self::Rts(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
+            0x60 => Self {
+                code: ins,
+                ins: Instruction::Rts,
+                mode: AddressingMode::Implicit,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
 
             // SEI
-            0x78 => Self::Sei(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0x78 => Self {
+                code: ins,
+                ins: Instruction::Sei,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // ASL
-            0x0A => Self::Asl(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AccumulatorAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0x0A => Self {
+                code: ins,
+                ins: Instruction::Asl,
+                mode: AddressingMode::Accumulator,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
-            0x06 => Self::Asl(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 5,
-                    can_cross_page: false,
-                },
-            ),
+            0x06 => Self {
+                code: ins,
+                ins: Instruction::Asl,
+                mode: AddressingMode::ZeroPage,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
 
-            0x16 => Self::Asl(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
+            0x16 => Self {
+                code: ins,
+                ins: Instruction::Asl,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
 
-            0x0E => Self::Asl(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
+            0x0E => Self {
+                code: ins,
+                ins: Instruction::Asl,
+                mode: AddressingMode::Absolute,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
 
-            0x1E => Self::Asl(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 7,
-                    can_cross_page: false,
-                },
-            ),
+            0x1E => Self {
+                code: ins,
+                ins: Instruction::Asl,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
 
             // SED
-            0xF8 => Self::Sed(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0xF8 => Self {
+                code: ins,
+                ins: Instruction::Sed,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // PHP
-            0x08 => Self::Php(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
+            0x08 => Self {
+                code: ins,
+                ins: Instruction::Php,
+                mode: AddressingMode::Implicit,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
             // PLA
-            0x68 => Self::Pla(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
+            0x68 => Self {
+                code: ins,
+                ins: Instruction::Pla,
+                mode: AddressingMode::Implicit,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
 
             // AND
-            0x29 => Self::And(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0x25 => Self::And(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0x35 => Self::And(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x2D => Self::And(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x3D => Self::And(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0x39 => Self::And(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteYAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0x21 => Self::And(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0x31 => Self::And(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectYAddressingMode,
-                    cycles: 5,
-                    can_cross_page: true,
-                },
-            ),
+            0x29 => Self {
+                code: ins,
+                ins: Instruction::And,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0x25 => Self {
+                code: ins,
+                ins: Instruction::And,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0x35 => Self {
+                code: ins,
+                ins: Instruction::And,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x2D => Self {
+                code: ins,
+                ins: Instruction::And,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x3D => Self {
+                code: ins,
+                ins: Instruction::And,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0x39 => Self {
+                code: ins,
+                ins: Instruction::And,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0x21 => Self {
+                code: ins,
+                ins: Instruction::And,
+                mode: AddressingMode::IndirectX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x31 => Self {
+                code: ins,
+                ins: Instruction::And,
+                mode: AddressingMode::IndirectY,
+                cycles: 5,
+                ins_type: InstructionType::CrossingPage,
+            },
 
             // CMP
-            0xC9 => Self::Cmp(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0xC5 => Self::Cmp(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0xD5 => Self::Cmp(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0xCD => Self::Cmp(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0xDD => Self::Cmp(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0xD9 => Self::Cmp(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteYAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0xC1 => Self::Cmp(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0xD1 => Self::Cmp(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectYAddressingMode,
-                    cycles: 5,
-                    can_cross_page: true,
-                },
-            ),
+            0xC9 => Self {
+                code: ins,
+                ins: Instruction::Cmp,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0xC5 => Self {
+                code: ins,
+                ins: Instruction::Cmp,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0xD5 => Self {
+                code: ins,
+                ins: Instruction::Cmp,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0xCD => Self {
+                code: ins,
+                ins: Instruction::Cmp,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0xDD => Self {
+                code: ins,
+                ins: Instruction::Cmp,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0xD9 => Self {
+                code: ins,
+                ins: Instruction::Cmp,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0xC1 => Self {
+                code: ins,
+                ins: Instruction::Cmp,
+                mode: AddressingMode::IndirectX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0xD1 => Self {
+                code: ins,
+                ins: Instruction::Cmp,
+                mode: AddressingMode::IndirectY,
+                cycles: 5,
+                ins_type: InstructionType::CrossingPage,
+            },
             // CLD
-            0xD8 => Self::Cld(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0xD8 => Self {
+                code: ins,
+                ins: Instruction::Cld,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // PHA
-            0x48 => Self::Pha(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
+            0x48 => Self {
+                code: ins,
+                ins: Instruction::Pha,
+                mode: AddressingMode::Implicit,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
 
             // PLP
-            0x28 => Self::Plp(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
+            0x28 => Self {
+                code: ins,
+                ins: Instruction::Plp,
+                mode: AddressingMode::Implicit,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
 
             // BMI
-            0x30 => Self::Bmi(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::RelativeAddressingMode,
-                    cycles: 2,
-                    can_cross_page: true,
-                },
-            ),
+            0x30 => Self {
+                code: ins,
+                ins: Instruction::Bmi,
+                mode: AddressingMode::Relative,
+                cycles: 2,
+                ins_type: InstructionType::Branch,
+            },
 
             // ORA
-            0x09 => Self::Ora(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0x05 => Self::Ora(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0x15 => Self::Ora(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x0D => Self::Ora(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x1D => Self::Ora(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0x19 => Self::Ora(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteYAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0x01 => Self::Ora(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0x11 => Self::Ora(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectYAddressingMode,
-                    cycles: 5,
-                    can_cross_page: true,
-                },
-            ),
+            0x09 => Self {
+                code: ins,
+                ins: Instruction::Ora,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0x05 => Self {
+                code: ins,
+                ins: Instruction::Ora,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0x15 => Self {
+                code: ins,
+                ins: Instruction::Ora,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x0D => Self {
+                code: ins,
+                ins: Instruction::Ora,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x1D => Self {
+                code: ins,
+                ins: Instruction::Ora,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0x19 => Self {
+                code: ins,
+                ins: Instruction::Ora,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0x01 => Self {
+                code: ins,
+                ins: Instruction::Ora,
+                mode: AddressingMode::IndirectX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x11 => Self {
+                code: ins,
+                ins: Instruction::Ora,
+                mode: AddressingMode::IndirectY,
+                cycles: 5,
+                ins_type: InstructionType::CrossingPage,
+            },
 
             // CLV
-            0xB8 => Self::Clv(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0xB8 => Self {
+                code: ins,
+                ins: Instruction::Clv,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // EOR
-            0x49 => Self::Eor(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0x45 => Self::Eor(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0x55 => Self::Eor(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x4D => Self::Eor(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x5D => Self::Eor(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0x59 => Self::Eor(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteYAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0x41 => Self::Eor(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0x51 => Self::Eor(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectYAddressingMode,
-                    cycles: 5,
-                    can_cross_page: true,
-                },
-            ),
+            0x49 => Self {
+                code: ins,
+                ins: Instruction::Eor,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0x45 => Self {
+                code: ins,
+                ins: Instruction::Eor,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0x55 => Self {
+                code: ins,
+                ins: Instruction::Eor,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x4D => Self {
+                code: ins,
+                ins: Instruction::Eor,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x5D => Self {
+                code: ins,
+                ins: Instruction::Eor,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0x59 => Self {
+                code: ins,
+                ins: Instruction::Eor,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0x41 => Self {
+                code: ins,
+                ins: Instruction::Eor,
+                mode: AddressingMode::IndirectX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x51 => Self {
+                code: ins,
+                ins: Instruction::Eor,
+                mode: AddressingMode::IndirectY,
+                cycles: 5,
+                ins_type: InstructionType::CrossingPage,
+            },
 
             // ADC
-            0x69 => Self::Adc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0x65 => Self::Adc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0x75 => Self::Adc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x6D => Self::Adc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x7D => Self::Adc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0x79 => Self::Adc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteYAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0x61 => Self::Adc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0x71 => Self::Adc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectYAddressingMode,
-                    cycles: 5,
-                    can_cross_page: true,
-                },
-            ),
+            0x69 => Self {
+                code: ins,
+                ins: Instruction::Adc,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0x65 => Self {
+                code: ins,
+                ins: Instruction::Adc,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0x75 => Self {
+                code: ins,
+                ins: Instruction::Adc,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x6D => Self {
+                code: ins,
+                ins: Instruction::Adc,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x7D => Self {
+                code: ins,
+                ins: Instruction::Adc,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0x79 => Self {
+                code: ins,
+                ins: Instruction::Adc,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0x61 => Self {
+                code: ins,
+                ins: Instruction::Adc,
+                mode: AddressingMode::IndirectX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x71 => Self {
+                code: ins,
+                ins: Instruction::Adc,
+                mode: AddressingMode::IndirectY,
+                cycles: 5,
+                ins_type: InstructionType::CrossingPage,
+            },
 
             // LDY
-            0xA0 => Self::Ldy(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0xA4 => Self::Ldy(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0xB4 => Self::Ldy(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0xAC => Self::Ldy(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0xBC => Self::Ldy(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
+            0xA0 => Self {
+                code: ins,
+                ins: Instruction::Ldy,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0xA4 => Self {
+                code: ins,
+                ins: Instruction::Ldy,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0xB4 => Self {
+                code: ins,
+                ins: Instruction::Ldy,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0xAC => Self {
+                code: ins,
+                ins: Instruction::Ldy,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0xBC => Self {
+                code: ins,
+                ins: Instruction::Ldy,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
 
             // CPY
-            0xC0 => Self::Cpy(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0xC4 => Self::Cpy(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0xCC => Self::Cpy(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
+            0xC0 => Self {
+                code: ins,
+                ins: Instruction::Cpy,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0xC4 => Self {
+                code: ins,
+                ins: Instruction::Cpy,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0xCC => Self {
+                code: ins,
+                ins: Instruction::Cpy,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
 
             // CPX
-            0xE0 => Self::Cpx(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0xE4 => Self::Cpx(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0xEC => Self::Cpx(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
+            0xE0 => Self {
+                code: ins,
+                ins: Instruction::Cpx,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0xE4 => Self {
+                code: ins,
+                ins: Instruction::Cpx,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0xEC => Self {
+                code: ins,
+                ins: Instruction::Cpx,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
 
             // SBC
-            0xE9 => Self::Sbc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0xE5 => Self::Sbc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0xF5 => Self::Sbc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0xED => Self::Sbc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0xFD => Self::Sbc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0xF9 => Self::Sbc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteYAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0xE1 => Self::Sbc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0xF1 => Self::Sbc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectYAddressingMode,
-                    cycles: 5,
-                    can_cross_page: true,
-                },
-            ),
+            0xE9 => Self {
+                code: ins,
+                ins: Instruction::Sbc,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0xEB => Self {
+                code: ins,
+                ins: Instruction::Sbc,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0xE5 => Self {
+                code: ins,
+                ins: Instruction::Sbc,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0xF5 => Self {
+                code: ins,
+                ins: Instruction::Sbc,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0xED => Self {
+                code: ins,
+                ins: Instruction::Sbc,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0xFD => Self {
+                code: ins,
+                ins: Instruction::Sbc,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0xF9 => Self {
+                code: ins,
+                ins: Instruction::Sbc,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0xE1 => Self {
+                code: ins,
+                ins: Instruction::Sbc,
+                mode: AddressingMode::IndirectX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0xF1 => Self {
+                code: ins,
+                ins: Instruction::Sbc,
+                mode: AddressingMode::IndirectY,
+                cycles: 5,
+                ins_type: InstructionType::CrossingPage,
+            },
 
             // INY
-            0xC8 => Self::Iny(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0xC8 => Self {
+                code: ins,
+                ins: Instruction::Iny,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // INX
-            0xE8 => Self::Inx(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0xE8 => Self {
+                code: ins,
+                ins: Instruction::Inx,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
             // DEY
-            0x88 => Self::Dey(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0x88 => Self {
+                code: ins,
+                ins: Instruction::Dey,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // DEX
-            0xCA => Self::Dex(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0xCA => Self {
+                code: ins,
+                ins: Instruction::Dex,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // TAX
-            0xAA => Self::Tax(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0xAA => Self {
+                code: ins,
+                ins: Instruction::Tax,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // TAY
-            0xA8 => Self::Tay(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0xA8 => Self {
+                code: ins,
+                ins: Instruction::Tay,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // TXA
-            0x8A => Self::Txa(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0x8A => Self {
+                code: ins,
+                ins: Instruction::Txa,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // TYA
-            0x98 => Self::Tya(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0x98 => Self {
+                code: ins,
+                ins: Instruction::Tya,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // TSX
-            0xBA => Self::Tsx(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0xBA => Self {
+                code: ins,
+                ins: Instruction::Tsx,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // TXS
-            0x9A => Self::Txs(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0x9A => Self {
+                code: ins,
+                ins: Instruction::Txs,
+                mode: AddressingMode::Implicit,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
             // RTI
-            0x40 => Self::Rti(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImplicitAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
+            0x40 => Self {
+                code: ins,
+                ins: Instruction::Rti,
+                mode: AddressingMode::Implicit,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
 
             // LSR
-            0x4A => Self::Lsr(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AccumulatorAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0x46 => Self::Lsr(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 5,
-                    can_cross_page: false,
-                },
-            ),
-            0x56 => Self::Lsr(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0x4E => Self::Lsr(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0x5E => Self::Lsr(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 7,
-                    can_cross_page: false,
-                },
-            ),
+            0x4A => Self {
+                code: ins,
+                ins: Instruction::Lsr,
+                mode: AddressingMode::Accumulator,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0x46 => Self {
+                code: ins,
+                ins: Instruction::Lsr,
+                mode: AddressingMode::ZeroPage,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
+            0x56 => Self {
+                code: ins,
+                ins: Instruction::Lsr,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x4E => Self {
+                code: ins,
+                ins: Instruction::Lsr,
+                mode: AddressingMode::Absolute,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x5E => Self {
+                code: ins,
+                ins: Instruction::Lsr,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
 
             // ROR
-            0x6A => Self::Ror(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AccumulatorAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0x66 => Self::Ror(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 5,
-                    can_cross_page: false,
-                },
-            ),
-            0x76 => Self::Ror(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0x6E => Self::Ror(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0x7E => Self::Ror(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 7,
-                    can_cross_page: false,
-                },
-            ),
+            0x6A => Self {
+                code: ins,
+                ins: Instruction::Ror,
+                mode: AddressingMode::Accumulator,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0x66 => Self {
+                code: ins,
+                ins: Instruction::Ror,
+                mode: AddressingMode::ZeroPage,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
+            0x76 => Self {
+                code: ins,
+                ins: Instruction::Ror,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x6E => Self {
+                code: ins,
+                ins: Instruction::Ror,
+                mode: AddressingMode::Absolute,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x7E => Self {
+                code: ins,
+                ins: Instruction::Ror,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
 
             // ROL
-            0x2A => Self::Rol(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AccumulatorAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0x26 => Self::Rol(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 5,
-                    can_cross_page: false,
-                },
-            ),
-            0x36 => Self::Rol(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0x2E => Self::Rol(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0x3E => Self::Rol(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 7,
-                    can_cross_page: false,
-                },
-            ),
+            0x2A => Self {
+                code: ins,
+                ins: Instruction::Rol,
+                mode: AddressingMode::Accumulator,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0x26 => Self {
+                code: ins,
+                ins: Instruction::Rol,
+                mode: AddressingMode::ZeroPage,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
+            0x36 => Self {
+                code: ins,
+                ins: Instruction::Rol,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x2E => Self {
+                code: ins,
+                ins: Instruction::Rol,
+                mode: AddressingMode::Absolute,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x3E => Self {
+                code: ins,
+                ins: Instruction::Rol,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
 
             // STY
-            0x84 => Self::Sty(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0x8C => Self::Sty(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x94 => Self::Sty(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
+            0x84 => Self {
+                code: ins,
+                ins: Instruction::Sty,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0x8C => Self {
+                code: ins,
+                ins: Instruction::Sty,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x94 => Self {
+                code: ins,
+                ins: Instruction::Sty,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
 
             // DEC
-            0xC6 => Self::Dec(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 5,
-                    can_cross_page: false,
-                },
-            ),
+            0xC6 => Self {
+                code: ins,
+                ins: Instruction::Dec,
+                mode: AddressingMode::ZeroPage,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
 
-            0xD6 => Self::Dec(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0xCE => Self::Dec(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0xDE => Self::Dec(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 7,
-                    can_cross_page: false,
-                },
-            ),
+            0xD6 => Self {
+                code: ins,
+                ins: Instruction::Dec,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0xCE => Self {
+                code: ins,
+                ins: Instruction::Dec,
+                mode: AddressingMode::Absolute,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0xDE => Self {
+                code: ins,
+                ins: Instruction::Dec,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
 
             // INC
-            0xE6 => Self::Inc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 5,
-                    can_cross_page: false,
-                },
-            ),
+            0xE6 => Self {
+                code: ins,
+                ins: Instruction::Inc,
+                mode: AddressingMode::ZeroPage,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
 
-            0xF6 => Self::Inc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0xEE => Self::Inc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0xFE => Self::Inc(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 7,
-                    can_cross_page: false,
-                },
-            ),
+            0xF6 => Self {
+                code: ins,
+                ins: Instruction::Inc,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0xEE => Self {
+                code: ins,
+                ins: Instruction::Inc,
+                mode: AddressingMode::Absolute,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0xFE => Self {
+                code: ins,
+                ins: Instruction::Inc,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
 
             // DOP
-            0x04 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0x14 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x34 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x44 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
+            0x04 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0x14 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x34 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x44 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
 
-            0x54 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x64 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
+            0x54 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x64 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
 
-            0x74 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
+            0x74 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
 
-            0x80 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0x82 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0x80 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0x82 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
-            0x89 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0x89 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
-            0xC2 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
-            0xD4 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
+            0xC2 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
+            0xD4 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
 
-            0xE2 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ImmediateAddressingMode,
-                    cycles: 2,
-                    can_cross_page: false,
-                },
-            ),
+            0xE2 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::Immediate,
+                cycles: 2,
+                ins_type: InstructionType::Common,
+            },
 
-            0xF4 => Self::Dop(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
+            0xF4 => Self {
+                code: ins,
+                ins: Instruction::Dop,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
 
             // Top
-            0x0C => Self::Top(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x1C => Self::Top(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0x3C => Self::Top(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0x5C => Self::Top(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0x7C => Self::Top(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0xDC => Self::Top(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0xFC => Self::Top(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteXAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
+            0x0C => Self {
+                code: ins,
+                ins: Instruction::Top,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x1C => Self {
+                code: ins,
+                ins: Instruction::Top,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0x3C => Self {
+                code: ins,
+                ins: Instruction::Top,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0x5C => Self {
+                code: ins,
+                ins: Instruction::Top,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0x7C => Self {
+                code: ins,
+                ins: Instruction::Top,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0xDC => Self {
+                code: ins,
+                ins: Instruction::Top,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0xFC => Self {
+                code: ins,
+                ins: Instruction::Top,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
 
             // LAX
-            0xA7 => Self::Lax(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0xB7 => Self::Lax(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageYAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0xAF => Self::Lax(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0xBF => Self::Lax(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteYAddressingMode,
-                    cycles: 4,
-                    can_cross_page: true,
-                },
-            ),
-            0xA3 => Self::Lax(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0xB3 => Self::Lax(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectYAddressingMode,
-                    cycles: 5,
-                    can_cross_page: true,
-                },
-            ),
+            0xA7 => Self {
+                code: ins,
+                ins: Instruction::Lax,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0xB7 => Self {
+                code: ins,
+                ins: Instruction::Lax,
+                mode: AddressingMode::ZeroPageY,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0xAF => Self {
+                code: ins,
+                ins: Instruction::Lax,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0xBF => Self {
+                code: ins,
+                ins: Instruction::Lax,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 4,
+                ins_type: InstructionType::CrossingPage,
+            },
+            0xA3 => Self {
+                code: ins,
+                ins: Instruction::Lax,
+                mode: AddressingMode::IndirectX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0xB3 => Self {
+                code: ins,
+                ins: Instruction::Lax,
+                mode: AddressingMode::IndirectY,
+                cycles: 5,
+                ins_type: InstructionType::CrossingPage,
+            },
 
             // AAX
-            0x87 => Self::Aax(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageAddressingMode,
-                    cycles: 3,
-                    can_cross_page: false,
-                },
-            ),
-            0x97 => Self::Aax(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::ZeroPageYAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
-            0x83 => Self::Aax(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::IndirectXAddressingMode,
-                    cycles: 6,
-                    can_cross_page: false,
-                },
-            ),
-            0x8F => Self::Aax(
-                ins,
-                InstructionInfo {
-                    mode: AddressingMode::AbsoluteAddressingMode,
-                    cycles: 4,
-                    can_cross_page: false,
-                },
-            ),
+            0x87 => Self {
+                code: ins,
+                ins: Instruction::Aax,
+                mode: AddressingMode::ZeroPage,
+                cycles: 3,
+                ins_type: InstructionType::Common,
+            },
+            0x97 => Self {
+                code: ins,
+                ins: Instruction::Aax,
+                mode: AddressingMode::ZeroPageY,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+            0x83 => Self {
+                code: ins,
+                ins: Instruction::Aax,
+                mode: AddressingMode::IndirectX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x8F => Self {
+                code: ins,
+                ins: Instruction::Aax,
+                mode: AddressingMode::Absolute,
+                cycles: 4,
+                ins_type: InstructionType::Common,
+            },
+
+            // DCP
+            0xC7 => Self {
+                code: ins,
+                ins: Instruction::Dcp,
+                mode: AddressingMode::ZeroPage,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
+            0xD7 => Self {
+                code: ins,
+                ins: Instruction::Dcp,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0xCF => Self {
+                code: ins,
+                ins: Instruction::Dcp,
+                mode: AddressingMode::Absolute,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0xDF => Self {
+                code: ins,
+                ins: Instruction::Dcp,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
+            0xDB => Self {
+                code: ins,
+                ins: Instruction::Dcp,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
+            0xC3 => Self {
+                code: ins,
+                ins: Instruction::Dcp,
+                mode: AddressingMode::IndirectX,
+                cycles: 8,
+                ins_type: InstructionType::Common,
+            },
+            0xD3 => Self {
+                code: ins,
+                ins: Instruction::Dcp,
+                mode: AddressingMode::IndirectY,
+                cycles: 8,
+                ins_type: InstructionType::Common,
+            },
 
             _ => None?,
         })
     }
     /// 返回时钟周期
-    fn invoke(self, bus: &mut CpuBus) -> Option<u32> {
-        match self {
-            Instruction::Jmp(_, ins) => Self::jmp(bus, ins),
-            Instruction::Ldx(_, ins) => Self::ldx(bus, ins),
-            Instruction::Stx(_, ins) => Self::stx(bus, ins),
-            Instruction::Jsr(_, ins) => Self::jsr(bus, ins),
-            Instruction::Nop(_, ins) => Self::nop(bus, ins),
-            Instruction::Sec(_, ins) => Self::sec(bus, ins),
-            Instruction::Bcs(_, ins) => Self::bcs(bus, ins),
-            Instruction::Clc(_, ins) => Self::clc(bus, ins),
-            Instruction::Bcc(_, ins) => Self::bcc(bus, ins),
-            Instruction::Lda(_, ins) => Self::lda(bus, ins),
-            Instruction::Beq(_, ins) => Self::beq(bus, ins),
-            Instruction::Bne(_, ins) => Self::bne(bus, ins),
-            Instruction::Sta(_, ins) => Self::sta(bus, ins),
-            Instruction::Bit(_, ins) => Self::bit(bus, ins),
-            Instruction::Bvs(_, ins) => Self::bvs(bus, ins),
-            Instruction::Bvc(_, ins) => Self::bvc(bus, ins),
-            Instruction::Bpl(_, ins) => Self::bpl(bus, ins),
-            Instruction::Rts(_, ins) => Self::rts(bus, ins),
-            Instruction::Asl(_, ins) => Self::asl(bus, ins),
-            Instruction::Sei(_, ins) => Self::sei(bus, ins),
-            Instruction::Sed(_, ins) => Self::sed(bus, ins),
-            Instruction::Php(_, ins) => Self::php(bus, ins),
-            Instruction::Pla(_, ins) => Self::pla(bus, ins),
-            Instruction::And(_, ins) => Self::and(bus, ins),
-            Instruction::Cmp(_, ins) => Self::cmp(bus, ins),
-            Instruction::Cld(_, ins) => Self::cld(bus, ins),
-            Instruction::Pha(_, ins) => Self::pha(bus, ins),
-            Instruction::Plp(_, ins) => Self::plp(bus, ins),
-            Instruction::Bmi(_, ins) => Self::bmi(bus, ins),
-            Instruction::Ora(_, ins) => Self::ora(bus, ins),
-            Instruction::Clv(_, ins) => Self::clv(bus, ins),
-            Instruction::Eor(_, ins) => Self::eor(bus, ins),
-            Instruction::Adc(_, ins) => Self::adc(bus, ins),
-            Instruction::Ldy(_, ins) => Self::ldy(bus, ins),
-            Instruction::Cpy(_, ins) => Self::cpy(bus, ins),
-            Instruction::Cpx(_, ins) => Self::cpx(bus, ins),
-            Instruction::Sbc(_, ins) => Self::sbc(bus, ins),
-            Instruction::Iny(_, ins) => Self::iny(bus, ins),
-            Instruction::Inx(_, ins) => Self::inx(bus, ins),
-            Instruction::Dey(_, ins) => Self::dey(bus, ins),
-            Instruction::Dex(_, ins) => Self::dex(bus, ins),
-            Instruction::Tay(_, ins) => Self::tay(bus, ins),
-            Instruction::Tax(_, ins) => Self::tax(bus, ins),
-            Instruction::Txa(_, ins) => Self::txa(bus, ins),
-            Instruction::Tya(_, ins) => Self::tya(bus, ins),
-            Instruction::Tsx(_, ins) => Self::tsx(bus, ins),
-            Instruction::Txs(_, ins) => Self::txs(bus, ins),
-            Instruction::Rti(_, ins) => Self::rti(bus, ins),
-            Instruction::Lsr(_, ins) => Self::lsr(bus, ins),
-            Instruction::Ror(_, ins) => Self::ror(bus, ins),
-            Instruction::Rol(_, ins) => Self::rol(bus, ins),
-            Instruction::Sty(_, ins) => Self::sty(bus, ins),
-            Instruction::Inc(_, ins) => Self::inc(bus, ins),
-            Instruction::Dec(_, ins) => Self::dec(bus, ins),
-            Instruction::Dop(_, ins) => Self::dop(bus, ins),
-            Instruction::Top(_, ins) => Self::top(bus, ins),
-            Instruction::Lax(_, ins) => Self::lax(bus, ins),
-            Instruction::Aax(_, ins) => Self::aax(bus, ins),
-        }
+    fn invoke(self, bus: &mut CpuBus) -> Result<u32> {
+        let (address, cross_page) = self.mode.addressing(bus)?;
+        // 分支语句是否跳转成功
+        let extra_info = match self.ins {
+            Instruction::Jmp => Self::jmp(bus, self.mode, address),
+            Instruction::Ldx => Self::ldx(bus, self.mode, address),
+            Instruction::Stx => Self::stx(bus, self.mode, address),
+            Instruction::Jsr => Self::jsr(bus, self.mode, address),
+            Instruction::Nop => Self::nop(bus, self.mode, address),
+            Instruction::Sec => Self::sec(bus, self.mode, address),
+            Instruction::Bcs => Self::bcs(bus, self.mode, address),
+            Instruction::Clc => Self::clc(bus, self.mode, address),
+            Instruction::Bcc => Self::bcc(bus, self.mode, address),
+            Instruction::Lda => Self::lda(bus, self.mode, address),
+            Instruction::Beq => Self::beq(bus, self.mode, address),
+            Instruction::Bne => Self::bne(bus, self.mode, address),
+            Instruction::Sta => Self::sta(bus, self.mode, address),
+            Instruction::Bit => Self::bit(bus, self.mode, address),
+            Instruction::Bvs => Self::bvs(bus, self.mode, address),
+            Instruction::Bvc => Self::bvc(bus, self.mode, address),
+            Instruction::Bpl => Self::bpl(bus, self.mode, address),
+            Instruction::Rts => Self::rts(bus, self.mode, address),
+            Instruction::Asl => Self::asl(bus, self.mode, address),
+            Instruction::Sei => Self::sei(bus, self.mode, address),
+            Instruction::Sed => Self::sed(bus, self.mode, address),
+            Instruction::Php => Self::php(bus, self.mode, address),
+            Instruction::Pla => Self::pla(bus, self.mode, address),
+            Instruction::And => Self::and(bus, self.mode, address),
+            Instruction::Cmp => Self::cmp(bus, self.mode, address),
+            Instruction::Cld => Self::cld(bus, self.mode, address),
+            Instruction::Pha => Self::pha(bus, self.mode, address),
+            Instruction::Plp => Self::plp(bus, self.mode, address),
+            Instruction::Bmi => Self::bmi(bus, self.mode, address),
+            Instruction::Ora => Self::ora(bus, self.mode, address),
+            Instruction::Clv => Self::clv(bus, self.mode, address),
+            Instruction::Eor => Self::eor(bus, self.mode, address),
+            Instruction::Adc => Self::adc(bus, self.mode, address),
+            Instruction::Ldy => Self::ldy(bus, self.mode, address),
+            Instruction::Cpy => Self::cpy(bus, self.mode, address),
+            Instruction::Cpx => Self::cpx(bus, self.mode, address),
+            Instruction::Sbc => Self::sbc(bus, self.mode, address),
+            Instruction::Iny => Self::iny(bus, self.mode, address),
+            Instruction::Inx => Self::inx(bus, self.mode, address),
+            Instruction::Dey => Self::dey(bus, self.mode, address),
+            Instruction::Dex => Self::dex(bus, self.mode, address),
+            Instruction::Tay => Self::tay(bus, self.mode, address),
+            Instruction::Tax => Self::tax(bus, self.mode, address),
+            Instruction::Txa => Self::txa(bus, self.mode, address),
+            Instruction::Tya => Self::tya(bus, self.mode, address),
+            Instruction::Tsx => Self::tsx(bus, self.mode, address),
+            Instruction::Txs => Self::txs(bus, self.mode, address),
+            Instruction::Rti => Self::rti(bus, self.mode, address),
+            Instruction::Lsr => Self::lsr(bus, self.mode, address),
+            Instruction::Ror => Self::ror(bus, self.mode, address),
+            Instruction::Rol => Self::rol(bus, self.mode, address),
+            Instruction::Sty => Self::sty(bus, self.mode, address),
+            Instruction::Inc => Self::inc(bus, self.mode, address),
+            Instruction::Dec => Self::dec(bus, self.mode, address),
+            Instruction::Dop => Self::dop(bus, self.mode, address),
+            Instruction::Top => Self::top(bus, self.mode, address),
+            Instruction::Lax => Self::lax(bus, self.mode, address),
+            Instruction::Aax => Self::aax(bus, self.mode, address),
+            Instruction::Dcp => Self::dcp(bus, self.mode, address),
+        }?;
+        Ok(match self.ins_type {
+            InstructionType::Common => get_cross_page_cycles(self.cycles, false),
+            InstructionType::CrossingPage => get_cross_page_cycles(self.cycles, cross_page),
+            InstructionType::Branch => get_branch_cycles(self.cycles, cross_page, extra_info),
+        })
     }
 
-    fn jmp(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        bus.registers_mut().pc = address.0;
-        Some(instruction.cycles)
+    fn jmp(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
+        bus.registers_mut().pc = address;
+        Ok(false)
     }
-    fn ldx(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn ldx(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         bus.registers_mut().x = data;
         bus.registers_mut().set_z_n_flags(data);
-        Some(get_cross_page_cycles(instruction, address.1))
+        Ok(false)
     }
-    fn stx(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        if !bus.cpu_write(address.0, bus.registers().x) {
-            return None;
-        }
-        Some(instruction.cycles)
+    fn stx(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        mode.write(bus, address, bus.registers().x)?;
+        Ok(false)
     }
-    fn jsr(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        if !bus.stack_push_word(bus.registers().pc - 1) {
-            return None;
-        }
-        bus.registers_mut().pc = address.0;
-        Some(instruction.cycles)
+    fn jsr(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
+        bus.stack_push_word(bus.registers().pc - 1)?;
+        bus.registers_mut().pc = address;
+        Ok(false)
     }
 
-    fn nop(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
-        Some(instruction.cycles)
+    fn nop(_bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        Ok(false)
     }
-    fn sec(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn sec(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         bus.registers_mut().set_c_flag(true);
-        Some(instruction.cycles)
+        Ok(false)
     }
-    fn bcs(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+    fn bcs(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = bus.registers().has_c_flag();
-        let address = instruction.mode.addressing(bus)?;
         if jmp_success {
-            bus.registers_mut().pc = address.0;
+            bus.registers_mut().pc = address;
         }
-        Some(get_branch_cycles(instruction, address.1, jmp_success))
+        Ok(jmp_success)
     }
 
-    fn clc(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn clc(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         bus.registers_mut().set_c_flag(false);
-        Some(instruction.cycles)
+        Ok(false)
     }
-    fn bcc(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+    fn bcc(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = !bus.registers().has_c_flag();
-        let address = instruction.mode.addressing(bus)?;
         if jmp_success {
-            bus.registers_mut().pc = address.0;
+            bus.registers_mut().pc = address;
         }
-        Some(get_branch_cycles(instruction, address.1, jmp_success))
+        Ok(jmp_success)
     }
 
-    fn lda(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn lda(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         bus.registers_mut().a = data;
         bus.registers_mut().set_z_n_flags(data);
-        Some(get_cross_page_cycles(instruction, address.1))
+        Ok(false)
     }
-    fn beq(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+    fn beq(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = bus.registers().has_z_flag();
-        let address = instruction.mode.addressing(bus)?;
         if jmp_success {
-            bus.registers_mut().pc = address.0;
+            bus.registers_mut().pc = address;
         }
-        Some(get_branch_cycles(instruction, address.1, jmp_success))
+        Ok(jmp_success)
     }
-    fn bne(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+    fn bne(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = !bus.registers().has_z_flag();
-        let address = instruction.mode.addressing(bus)?;
         if jmp_success {
-            bus.registers_mut().pc = address.0;
+            bus.registers_mut().pc = address;
         }
-        Some(get_branch_cycles(instruction, address.1, jmp_success))
+        Ok(jmp_success)
     }
-    fn sta(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        if !bus.cpu_write(address.0, bus.registers().a) {
-            return None;
-        }
-        Some(instruction.cycles)
+    fn sta(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        mode.write(bus, address, bus.registers().a)?;
+        Ok(false)
     }
-    fn bit(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn bit(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         let a = bus.registers().a;
         bus.registers_mut().set_z_flag(data & a == 0);
         bus.registers_mut()
             .set_v_flag(data & 0b01000000 == 0b01000000);
         bus.registers_mut().set_n_flag(data >> 7 == 1);
-        Some(instruction.cycles)
+        Ok(false)
     }
-    fn bvs(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+    fn bvs(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = bus.registers().has_v_flag();
-        let address = instruction.mode.addressing(bus)?;
         if jmp_success {
-            bus.registers_mut().pc = address.0;
+            bus.registers_mut().pc = address;
         }
-        Some(get_branch_cycles(instruction, address.1, jmp_success))
+        Ok(jmp_success)
     }
-    fn bvc(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+    fn bvc(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = !bus.registers().has_v_flag();
-        let address = instruction.mode.addressing(bus)?;
         if jmp_success {
-            bus.registers_mut().pc = address.0;
+            bus.registers_mut().pc = address;
         }
-        Some(get_branch_cycles(instruction, address.1, jmp_success))
+        Ok(jmp_success)
     }
-    fn bpl(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+    fn bpl(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = !bus.registers().has_n_flag();
-        let address = instruction.mode.addressing(bus)?;
+
         if jmp_success {
-            bus.registers_mut().pc = address.0;
+            bus.registers_mut().pc = address;
         }
-        Some(get_branch_cycles(instruction, address.1, jmp_success))
+        Ok(jmp_success)
     }
-    fn rts(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+    fn rts(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let address = bus.stack_pop_word()?;
         bus.registers_mut().pc = address + 1;
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn sei(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn sei(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         bus.registers_mut().set_i_flag(true);
-        Some(instruction.cycles)
+        Ok(false)
     }
-    fn asl(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let mut data = instruction.mode.read(bus, address.0)?;
+    fn asl(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let mut data = mode.read(bus, address)?;
         bus.registers_mut().set_c_flag(data >> 7 == 1);
         data <<= 1;
         bus.registers_mut().set_z_n_flags(data);
-        if !instruction.mode.write(bus, address.0, data) {
-            return None;
-        }
-        Some(instruction.cycles)
+        mode.write(bus, address, data)?;
+        Ok(false)
     }
 
-    fn sed(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn sed(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         bus.registers_mut().set_d_flag(true);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn php(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
-        if !bus.stack_push(bus.registers().p | P_FLAGS_U | P_FLAGS_B) {
-            return None;
-        }
-        Some(instruction.cycles)
+    fn php(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
+        bus.stack_push(bus.registers().p | P_FLAGS_U | P_FLAGS_B)?;
+        Ok(false)
     }
 
-    fn pla(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn pla(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         bus.registers_mut().a = bus.stack_pop()?;
         let a = bus.registers().a;
         bus.registers_mut().set_z_n_flags(a);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn and(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn and(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         let result = bus.registers().a & data;
         bus.registers_mut().a = result;
         bus.registers_mut().set_z_n_flags(result);
-        Some(get_cross_page_cycles(instruction, address.1))
+        Ok(false)
     }
-    fn cmp(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn cmp(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         let result = bus.registers().a as i16 - data as i16;
         bus.registers_mut().set_z_n_flags(result as u8);
         bus.registers_mut().set_c_flag(result >= 0);
-        Some(get_cross_page_cycles(instruction, address.1))
+        Ok(false)
     }
 
-    fn cld(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn cld(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         bus.registers_mut().set_d_flag(false);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn pha(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
-        if !bus.stack_push(bus.registers().a) {
-            return None;
-        }
-        Some(instruction.cycles)
+    fn pha(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
+        bus.stack_push(bus.registers().a) ?;
+        Ok(false)
     }
 
-    fn plp(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn plp(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         let p = bus.stack_pop()?;
         bus.registers_mut().p = p;
         bus.registers_mut().set_u_flag(true);
         bus.registers_mut().set_b_flag(false);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn bmi(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
+    fn bmi(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = bus.registers().has_n_flag();
-        let address = instruction.mode.addressing(bus)?;
+
         if jmp_success {
-            bus.registers_mut().pc = address.0;
+            bus.registers_mut().pc = address;
         }
-        Some(get_branch_cycles(instruction, address.1, jmp_success))
+        Ok(jmp_success)
     }
 
-    fn ora(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn ora(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         let result = bus.registers().a | data;
         bus.registers_mut().a = result;
         bus.registers_mut().set_z_n_flags(result);
-        Some(get_cross_page_cycles(instruction, address.1))
+        Ok(false)
     }
 
-    fn clv(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn clv(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         bus.registers_mut().set_v_flag(false);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn eor(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn eor(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         let result = bus.registers().a ^ data;
         bus.registers_mut().a = result;
         bus.registers_mut().set_z_n_flags(result);
-        Some(get_cross_page_cycles(instruction, address.1))
+        Ok(false)
     }
 
-    fn adc(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn adc(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         let result =
             bus.registers().a as u16 + data as u16 + (bus.registers().p & P_FLAGS_C) as u16;
         let af = bus.registers().a >> 7;
@@ -2019,40 +1875,36 @@ impl Instruction {
         bus.registers_mut().set_c_flag((result >> 8) & 1 == 1);
         bus.registers_mut().a = result as u8;
         bus.registers_mut().set_z_n_flags(result as u8);
-        Some(get_cross_page_cycles(instruction, address.1))
+        Ok(false)
     }
 
-    fn ldy(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn ldy(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         bus.registers_mut().y = data;
         bus.registers_mut().set_z_n_flags(data);
-        Some(get_cross_page_cycles(instruction, address.1))
+        Ok(false)
     }
-    fn cpy(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
+    fn cpy(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
         let y = bus.registers().y;
-        let m = instruction.mode.read(bus, address.0)?;
+        let m = mode.read(bus, address)?;
         let result = (y as i16 - m as i16) as u8;
         bus.registers_mut().set_c_flag(y >= m);
         bus.registers_mut().set_z_flag(y == m);
         bus.registers_mut().set_n_flag(result >> 7 == 1);
-        Some(instruction.cycles)
+        Ok(false)
     }
-    fn cpx(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
+    fn cpx(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
         let x = bus.registers().x;
-        let m = instruction.mode.read(bus, address.0)?;
+        let m = mode.read(bus, address)?;
         let result = (x as i16 - m as i16) as u8;
         bus.registers_mut().set_c_flag(x >= m);
         bus.registers_mut().set_z_flag(x == m);
         bus.registers_mut().set_n_flag(result >> 7 == 1);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn sbc(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn sbc(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         let result =
             bus.registers().a as i16 - data as i16 - (1 - (bus.registers().p & P_FLAGS_C)) as i16;
         let af = bus.registers().a >> 7;
@@ -2063,199 +1915,180 @@ impl Instruction {
         bus.registers_mut().set_c_flag((result >> 8) & 1 == 0);
         bus.registers_mut().a = result as u8;
         bus.registers_mut().set_z_n_flags(result as u8);
-        Some(get_cross_page_cycles(instruction, address.1))
+        Ok(false)
     }
 
-    fn iny(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn iny(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         let result = (bus.registers().y as i16 + 1) as u8;
         bus.registers_mut().y = result;
         bus.registers_mut().set_z_n_flags(result);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn inx(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn inx(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         let result = (bus.registers().x as i16 + 1) as u8;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn dex(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn dex(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         let result = (bus.registers().x as i16 - 1) as u8;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn dey(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn dey(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         let result = (bus.registers().y as i16 - 1) as u8;
         bus.registers_mut().y = result;
         bus.registers_mut().set_z_n_flags(result);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn tax(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn tax(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         let result = bus.registers().a;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn tay(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn tay(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         let result = bus.registers().a;
         bus.registers_mut().y = result;
         bus.registers_mut().set_z_n_flags(result);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn txa(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn txa(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         let result = bus.registers().x;
         bus.registers_mut().a = result;
         bus.registers_mut().set_z_n_flags(result);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn tya(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn tya(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         let result = bus.registers().y;
         bus.registers_mut().a = result;
         bus.registers_mut().set_z_n_flags(result);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn tsx(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn tsx(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         let result = bus.registers().sp;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
-        Some(instruction.cycles)
+       Ok(false)
     }
 
-    fn txs(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn txs(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         let result = bus.registers().x;
         bus.registers_mut().sp = result;
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn rti(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
+    fn rti(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
         let result = bus.stack_pop()? | P_FLAGS_U;
         bus.registers_mut().p = result;
         bus.registers_mut().pc = bus.stack_pop_word()?;
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn lsr(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn lsr(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         let result = data >> 1;
-        if !instruction.mode.write(bus, address.0, result) {
-            return None;
-        }
+        mode.write(bus, address, result)?;
         bus.registers_mut().set_c_flag(data & 1 == 1);
         bus.registers_mut().set_z_n_flags(result);
-        Some(instruction.cycles)
+        Ok(false)
     }
-    fn ror(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn ror(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         let result = (data >> 1) | ((bus.registers().p & P_FLAGS_C) << 7);
-        if !instruction.mode.write(bus, address.0, result) {
-            return None;
-        }
+        mode.write(bus, address, result)?;
         bus.registers_mut().set_c_flag(data & 1 == 1);
         bus.registers_mut().set_z_n_flags(result);
-        Some(instruction.cycles)
+        Ok(false)
     }
-    fn rol(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn rol(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         let result = (data << 1) | (bus.registers().p & P_FLAGS_C);
-        if !instruction.mode.write(bus, address.0, result) {
-            return None;
-        }
+        mode.write(bus, address, result)?;
         bus.registers_mut().set_c_flag(data >> 7 == 1);
         bus.registers_mut().set_z_n_flags(result);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn sty(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        if !bus.cpu_write(address.0, bus.registers().y) {
-            return None;
-        }
-        Some(instruction.cycles)
+    fn sty(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        mode.write(bus, address, bus.registers().y)?;
+        Ok(false)
     }
-    fn inc(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn inc(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         let data = ((data as i16) + 1) as u8;
-        if !instruction.mode.write(bus, address.0, data) {
-            return None;
-        }
+        mode.write(bus, address, data)?;
         bus.registers_mut().set_z_n_flags(data);
-        Some(instruction.cycles)
+       Ok(false)
     }
 
-    fn dec(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let address = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address.0)?;
+    fn dec(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         let result = ((data as i16) - 1) as u8;
-        if !instruction.mode.write(bus, address.0, result) {
-            return None;
-        }
+        mode.write(bus, address, result)?;
         bus.registers_mut().set_z_n_flags(result);
-        Some(instruction.cycles)
+        Ok(false)
     }
 
-    fn dop(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        instruction.mode.addressing(bus)?;
-        Some(instruction.cycles)
+    fn dop(_bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+        
+        Ok(false)
     }
-    fn top(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let (_, page_crossed) = instruction.mode.addressing(bus)?;
-        Some(get_cross_page_cycles(instruction, page_crossed))
+    fn top(_bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+       Ok(false)
     }
 
-    fn lax(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let (address, page_crossed) = instruction.mode.addressing(bus)?;
-        let data = instruction.mode.read(bus, address)?;
+    fn lax(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
         bus.registers_mut().a = data;
         bus.registers_mut().x = data;
         bus.registers_mut().set_z_n_flags(data);
-        Some(get_cross_page_cycles(instruction, page_crossed))
+        Ok(false)
     }
 
-    fn aax(bus: &mut CpuBus, instruction: InstructionInfo) -> Option<u32> {
-        let (address, page_crossed) = instruction.mode.addressing(bus)?;
+    fn aax(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = bus.registers().a & bus.registers().x;
-        if !bus.cpu_write(address, data) {
-            return None;
-        }
-        Some(get_cross_page_cycles(instruction, page_crossed))
+        mode.write(bus, address, data)?;
+        Ok(false)
+    }
+    fn dcp(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
+        let tmp = (data as i16 - 1) as u8;
+        mode.write(bus, address, tmp)?;
+        let result = (bus.registers().a as i16 - tmp as i16) as u16;
+        bus.registers_mut().set_c_flag(result < 0x0100);
+        bus.registers_mut().set_z_n_flags(result as u8);
+        Ok(false)
     }
 }
 
-fn get_cross_page_cycles(ins: InstructionInfo, page_crossed: bool) -> u32 {
-    ins.cycles
-        + if ins.can_cross_page && page_crossed {
-            1
-        } else {
-            0
-        }
+fn get_cross_page_cycles(cycles: u32, page_crossed: bool) -> u32 {
+    cycles + if page_crossed { 1 } else { 0 }
 }
-fn get_branch_cycles(ins: InstructionInfo, page_crossed: bool, success: bool) -> u32 {
-    ins.cycles
+fn get_branch_cycles(cycles: u32, page_crossed: bool, success: bool) -> u32 {
+    cycles
         + if success {
-            if ins.can_cross_page && page_crossed {
+            if page_crossed {
                 2
             } else {
                 1

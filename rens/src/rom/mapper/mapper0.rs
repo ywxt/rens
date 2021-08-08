@@ -1,4 +1,4 @@
-use crate::memory::Memory;
+use crate::memory::{Memory, MemoryError, Result};
 
 use super::Mapper;
 
@@ -43,47 +43,53 @@ impl Mapper for Mapper000 {
 }
 
 impl Memory for Mapper000 {
-    fn read(&self, address: u16) -> Option<u8> {
+    fn read(&self, address: u16) -> Result<u8> {
         match address {
-            Self::ADDRESS_CHR_BANK_START..=Self::ADDRESS_CHR_BANK_END => {
-                self.chr_rom.get(address as usize).copied()
-            }
+            Self::ADDRESS_CHR_BANK_START..=Self::ADDRESS_CHR_BANK_END => self
+                .chr_rom
+                .get(address as usize)
+                .copied()
+                .ok_or(MemoryError::ReadMemory(address)),
             Self::ADDRESS_PRG_RAM_BANK_START..=Self::ADDRESS_PRG_RAM_BANK_END => self
                 .prg_ram
                 .get((address - Self::ADDRESS_PRG_RAM_BANK_START) as usize)
-                .copied(),
+                .copied()
+                .ok_or(MemoryError::ReadMemory(address)),
             Self::ADDRESS_PRG_BANK_FIRST_START..=Self::ADDRESS_PRG_BANK_FIRST_END => self
                 .prg_rom
                 .get((address - Self::ADDRESS_PRG_BANK_FIRST_START) as usize)
-                .copied(),
+                .copied()
+                .ok_or(MemoryError::ReadMemory(address)),
             Self::ADDRESS_PRG_BANK_SECOND_START..=Self::ADDRESS_PRG_BANK_SECOND_END => {
                 if self.nrom_128 {
                     self.prg_rom
                         .get((address - Self::ADDRESS_PRG_BANK_SECOND_START) as usize)
                         .copied()
+                        .ok_or(MemoryError::ReadMemory(address))
                 } else {
                     self.prg_rom
                         .get((address - Self::ADDRESS_PRG_BANK_FIRST_START) as usize)
                         .copied()
+                        .ok_or(MemoryError::ReadMemory(address))
                 }
             }
-            _ => return None,
+            _ => Err(MemoryError::ReadMemory(address)),
         }
     }
 
-    fn write(&mut self, address: u16, data: u8) -> bool {
+    fn write(&mut self, address: u16, data: u8) -> Result<()> {
         match address {
             Self::ADDRESS_CHR_BANK_START..=Self::ADDRESS_CHR_BANK_END => {
                 self.chr_rom[address as usize] = data;
-                true
+                Ok(())
             }
             Self::ADDRESS_PRG_RAM_BANK_START..=Self::ADDRESS_PRG_RAM_BANK_END => {
                 self.prg_ram[(address - Self::ADDRESS_PRG_RAM_BANK_START) as usize] = data;
-                true
+                Ok(())
             }
             Self::ADDRESS_PRG_BANK_FIRST_START..=Self::ADDRESS_PRG_BANK_FIRST_END => {
                 self.prg_rom[(address - Self::ADDRESS_PRG_BANK_FIRST_START) as usize] = data;
-                true
+                Ok(())
             }
             Self::ADDRESS_PRG_BANK_SECOND_START..=Self::ADDRESS_PRG_BANK_SECOND_END => {
                 if self.nrom_128 {
@@ -91,9 +97,9 @@ impl Memory for Mapper000 {
                 } else {
                     self.prg_rom[(address - Self::ADDRESS_PRG_BANK_FIRST_START) as usize] = data;
                 }
-                true
+                Ok(())
             }
-            _ => false,
+            _ => Err(MemoryError::WriteMemory(address)),
         }
     }
 }

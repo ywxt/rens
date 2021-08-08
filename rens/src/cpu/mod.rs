@@ -1,17 +1,18 @@
 mod addressing;
-mod cpu_bus;
-mod cpu_memory;
-mod cpu_register;
-mod cpu_stack;
+mod bus;
 mod error;
 mod instruction;
+mod memory;
+mod register;
+mod stack;
 
-pub use cpu_bus::*;
+pub use bus::*;
 pub use error::*;
 
 use crate::clock::Clock;
-use cpu_register::*;
+use crate::memory::Result;
 use instruction::*;
+use register::*;
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug)]
@@ -34,12 +35,9 @@ impl Cpu {
             defer_cycles: 0,
         }
     }
-    pub fn reset(&mut self) -> bool {
+    pub fn reset(&mut self) -> Result<()> {
         let mut bus = self.bus.borrow_mut();
-        let pc = match bus.cpu_read_word(Self::VECTOR_RESET) {
-            Some(pc) => pc,
-            None => return false,
-        };
+        let pc = bus.cpu_read_word(Self::VECTOR_RESET)?;
         let mut registers = bus.registers_mut();
         registers.a = 0;
         registers.x = 0;
@@ -50,54 +48,45 @@ impl Cpu {
         registers.sp = 0xFD;
         registers.pc = pc;
         self.defer_cycles = 7;
-        true
+        Ok(())
     }
-    pub fn nmi(&mut self) -> bool {
+    pub fn nmi(&mut self) -> Result<()> {
         let mut bus = self.bus.borrow_mut();
-        let nmi_pc = match bus.cpu_read_word(Self::VECTOR_NMI) {
-            Some(pc) => pc,
-            None => return false,
-        };
+        let nmi_pc = bus.cpu_read_word(Self::VECTOR_NMI)?;
         let pc = bus.registers().pc;
         let p = bus.registers().p;
 
-        bus.stack_push_word(pc);
-        bus.stack_push((p | P_FLAGS_U) & !P_FLAGS_B);
+        bus.stack_push_word(pc)?;
+        bus.stack_push((p | P_FLAGS_U) & !P_FLAGS_B)?;
 
         let registers = bus.registers_mut();
         registers.set_i_flag(true);
         registers.pc = nmi_pc;
         self.defer_cycles += 7;
-        true
+        Ok(())
     }
-    pub fn irq(&mut self) -> bool {
+    pub fn irq(&mut self) -> Result<()> {
         let mut bus = self.bus.borrow_mut();
         if bus.registers().p.has_flag(P_FLAGS_I) {
-            return true;
+            return Ok(());
         }
-        let irq_pc = match bus.cpu_read_word(Self::VECTOR_IRQ_OR_BRK) {
-            Some(pc) => pc,
-            None => return false,
-        };
+        let irq_pc =bus.cpu_read_word(Self::VECTOR_IRQ_OR_BRK) ?;
         let pc = bus.registers().pc;
         let p = bus.registers().p;
-        bus.stack_push_word(pc);
-        bus.stack_push((p | P_FLAGS_U) & !P_FLAGS_B);
+        bus.stack_push_word(pc)?;
+        bus.stack_push((p | P_FLAGS_U) & !P_FLAGS_B)?;
         let registers = bus.registers_mut();
         registers.set_i_flag(true);
         registers.pc = irq_pc;
         self.defer_cycles += 7;
-        true
+        Ok(())
     }
 
-    fn step(&mut self) -> Result<(), CpuError> {
+    fn step(&mut self) -> std::result::Result<(), CpuError> {
         let mut bus = self.bus.borrow_mut();
         let pc = bus.registers().pc;
         bus.registers_mut().pc += 1;
-        let op = match bus.cpu_read(pc) {
-            Some(op) => op,
-            None => return Err(CpuError::ReadMemoryAddressError(pc)),
-        };
+        let op = bus.cpu_read(pc)?; 
         self.defer_cycles = self.processor.process(op, &mut bus)?;
         Ok(())
     }
@@ -105,7 +94,7 @@ impl Cpu {
 
 impl Clock for Cpu {
     type Error = CpuError;
-    fn clock(&mut self) -> Result<(), CpuError> {
+    fn clock(&mut self) -> std::result::Result<(), CpuError> {
         if self.defer_cycles == 0 {
             self.step()?;
         }
@@ -137,7 +126,7 @@ mod test {
             .unwrap(),
         )));
         let mut cpu = Cpu::new(bus);
-        cpu.reset();
+        cpu.reset().unwrap();
         cpu.bus.borrow_mut().registers_mut().pc = 0xC000;
         let regex = Regex::new(
             r"(?P<ADDR>[A-Z0-9]{4})\s+([A-Z0-9]{2} )+\s*[*#$=@,()A-Z0-9 ]+A:(?P<A>[A-Z0-9]{2}) X:(?P<X>[A-Z0-9]{2}) Y:(?P<Y>[A-Z0-9]{2}) P:(?P<P>[A-Z0-9]{2}) SP:(?P<SP>[A-Z0-9]{2}) PPU:\s*(?P<PPU>\d+,\s*\d+) CYC:(?P<CYC>\d+)",

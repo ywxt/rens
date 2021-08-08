@@ -38,7 +38,7 @@ impl NesLoader {
         }
         let header_bytes = &rom[0..Self::HEADER_SIZE];
         let mut position: usize = 0;
-        let header = Header::from_slice(&header_bytes)?;
+        let header = Header::from_slice(header_bytes)?;
         position += Self::HEADER_SIZE;
         let trainer = if header.trainer() {
             if rom.len() < position + Self::TRAINER_SIZE {
