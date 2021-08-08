@@ -1,5 +1,5 @@
 [workspace]
 members = [
-    "nes",
-    "nes-play",
+    "rens",
+    "rens-play",
 ]
