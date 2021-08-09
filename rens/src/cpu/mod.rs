@@ -13,11 +13,11 @@ use crate::clock::Clock;
 use crate::memory::Result;
 use instruction::*;
 use register::*;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Weak};
 
 #[derive(Debug)]
 pub struct Cpu {
-    bus: Rc<RefCell<CpuBus>>,
+    bus: Weak<RefCell<CpuBus>>,
     processor: InstructionProcessor,
     cycles: u32,
     defer_cycles: u32,
@@ -27,7 +27,7 @@ impl Cpu {
     const VECTOR_RESET: u16 = 0xFFFC;
     const VECTOR_NMI: u16 = 0xFFFA;
     const VECTOR_IRQ_OR_BRK: u16 = 0xFFFE;
-    pub fn new(bus: Rc<RefCell<CpuBus>>) -> Self {
+    pub fn new(bus: Weak<RefCell<CpuBus>>) -> Self {
         Self {
             bus,
             processor: InstructionProcessor,
@@ -36,7 +36,8 @@ impl Cpu {
         }
     }
     pub fn reset(&mut self) -> Result<()> {
-        let mut bus = self.bus.borrow_mut();
+        let bus = self.bus.upgrade().unwrap();
+        let mut bus = bus.borrow_mut();
         let pc = bus.cpu_read_word(Self::VECTOR_RESET)?;
         let mut registers = bus.registers_mut();
         registers.a = 0;
@@ -51,7 +52,8 @@ impl Cpu {
         Ok(())
     }
     pub fn nmi(&mut self) -> Result<()> {
-        let mut bus = self.bus.borrow_mut();
+        let bus = self.bus.upgrade().unwrap();
+        let mut bus = bus.borrow_mut();
         let nmi_pc = bus.cpu_read_word(Self::VECTOR_NMI)?;
         let pc = bus.registers().pc;
         let p = bus.registers().p;
@@ -66,7 +68,8 @@ impl Cpu {
         Ok(())
     }
     pub fn irq(&mut self) -> Result<()> {
-        let mut bus = self.bus.borrow_mut();
+        let bus = self.bus.upgrade().unwrap();
+        let mut bus = bus.borrow_mut();
         if bus.registers().p.has_flag(P_FLAGS_I) {
             return Ok(());
         }
@@ -83,7 +86,8 @@ impl Cpu {
     }
 
     fn step(&mut self) -> std::result::Result<(), CpuError> {
-        let mut bus = self.bus.borrow_mut();
+        let bus = self.bus.upgrade().unwrap();
+        let mut bus = bus.borrow_mut();
         let pc = bus.registers().pc;
         bus.registers_mut().pc += 1;
         let op = bus.cpu_read(pc)?; 
@@ -125,9 +129,9 @@ mod test {
             )
             .unwrap(),
         )));
-        let mut cpu = Cpu::new(bus);
+        let mut cpu = Cpu::new(Rc::downgrade(&bus));
         cpu.reset().unwrap();
-        cpu.bus.borrow_mut().registers_mut().pc = 0xC000;
+        cpu.bus.upgrade().unwrap().borrow_mut().registers_mut().pc = 0xC000;
         let regex = Regex::new(
             r"(?P<ADDR>[A-Z0-9]{4})\s+([A-Z0-9]{2} )+\s*[*#$=@,()A-Z0-9 ]+A:(?P<A>[A-Z0-9]{2}) X:(?P<X>[A-Z0-9]{2}) Y:(?P<Y>[A-Z0-9]{2}) P:(?P<P>[A-Z0-9]{2}) SP:(?P<SP>[A-Z0-9]{2}) PPU:\s*(?P<PPU>\d+,\s*\d+) CYC:(?P<CYC>\d+)",
         ).unwrap();
@@ -139,7 +143,7 @@ mod test {
                     None => break,
                     Some(capture) => capture,
                 };
-                assert!(check(capture, cpu.cycles, cpu.bus.borrow().registers()));
+                assert!(check(capture, cpu.cycles, cpu.bus.upgrade().unwrap().borrow().registers()));
             }
 
             if let Err(error) = cpu.clock() {
