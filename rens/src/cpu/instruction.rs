@@ -80,6 +80,7 @@ enum Instruction {
     Lax,
     Aax,
     Dcp,
+    Isc,
 }
 #[derive(Debug)]
 struct InstructionInfo {
@@ -1581,6 +1582,57 @@ impl InstructionInfo {
                 ins_type: InstructionType::Common,
             },
 
+            // ISC
+            0xE7 => Self {
+                code: ins,
+                ins: Instruction::Isc,
+                mode: AddressingMode::ZeroPage,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
+            0xF7 => Self {
+                code: ins,
+                ins: Instruction::Isc,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0xEF => Self {
+                code: ins,
+                ins: Instruction::Isc,
+                mode: AddressingMode::Absolute,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0xFF => Self {
+                code: ins,
+                ins: Instruction::Isc,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
+            0xFB => Self {
+                code: ins,
+                ins: Instruction::Isc,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
+            0xE3 => Self {
+                code: ins,
+                ins: Instruction::Isc,
+                mode: AddressingMode::IndirectX,
+                cycles: 8,
+                ins_type: InstructionType::Common,
+            },
+            0xF3 => Self {
+                code: ins,
+                ins: Instruction::Isc,
+                mode: AddressingMode::IndirectY,
+                cycles: 8,
+                ins_type: InstructionType::Common,
+            },
+
             _ => None?,
         })
     }
@@ -1648,6 +1700,7 @@ impl InstructionInfo {
             Instruction::Lax => Self::lax(bus, self.mode, address),
             Instruction::Aax => Self::aax(bus, self.mode, address),
             Instruction::Dcp => Self::dcp(bus, self.mode, address),
+            Instruction::Isc => Self::isc(bus, self.mode, address),
         }?;
         Ok(match self.ins_type {
             InstructionType::Common => get_cross_page_cycles(self.cycles, false),
@@ -1778,19 +1831,16 @@ impl InstructionInfo {
     }
 
     fn sed(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         bus.registers_mut().set_d_flag(true);
         Ok(false)
     }
 
     fn php(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         bus.stack_push(bus.registers().p | P_FLAGS_U | P_FLAGS_B)?;
         Ok(false)
     }
 
     fn pla(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         bus.registers_mut().a = bus.stack_pop()?;
         let a = bus.registers().a;
         bus.registers_mut().set_z_n_flags(a);
@@ -1813,19 +1863,16 @@ impl InstructionInfo {
     }
 
     fn cld(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         bus.registers_mut().set_d_flag(false);
         Ok(false)
     }
 
     fn pha(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
-        bus.stack_push(bus.registers().a) ?;
+        bus.stack_push(bus.registers().a)?;
         Ok(false)
     }
 
     fn plp(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         let p = bus.stack_pop()?;
         bus.registers_mut().p = p;
         bus.registers_mut().set_u_flag(true);
@@ -1851,7 +1898,6 @@ impl InstructionInfo {
     }
 
     fn clv(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         bus.registers_mut().set_v_flag(false);
         Ok(false)
     }
@@ -1919,7 +1965,6 @@ impl InstructionInfo {
     }
 
     fn iny(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         let result = (bus.registers().y as i16 + 1) as u8;
         bus.registers_mut().y = result;
         bus.registers_mut().set_z_n_flags(result);
@@ -1927,7 +1972,6 @@ impl InstructionInfo {
     }
 
     fn inx(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         let result = (bus.registers().x as i16 + 1) as u8;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
@@ -1935,7 +1979,6 @@ impl InstructionInfo {
     }
 
     fn dex(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         let result = (bus.registers().x as i16 - 1) as u8;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
@@ -1943,7 +1986,6 @@ impl InstructionInfo {
     }
 
     fn dey(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         let result = (bus.registers().y as i16 - 1) as u8;
         bus.registers_mut().y = result;
         bus.registers_mut().set_z_n_flags(result);
@@ -1951,7 +1993,6 @@ impl InstructionInfo {
     }
 
     fn tax(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         let result = bus.registers().a;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
@@ -1959,7 +2000,6 @@ impl InstructionInfo {
     }
 
     fn tay(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         let result = bus.registers().a;
         bus.registers_mut().y = result;
         bus.registers_mut().set_z_n_flags(result);
@@ -1967,7 +2007,6 @@ impl InstructionInfo {
     }
 
     fn txa(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         let result = bus.registers().x;
         bus.registers_mut().a = result;
         bus.registers_mut().set_z_n_flags(result);
@@ -1975,7 +2014,6 @@ impl InstructionInfo {
     }
 
     fn tya(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         let result = bus.registers().y;
         bus.registers_mut().a = result;
         bus.registers_mut().set_z_n_flags(result);
@@ -1983,22 +2021,19 @@ impl InstructionInfo {
     }
 
     fn tsx(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         let result = bus.registers().sp;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
-       Ok(false)
+        Ok(false)
     }
 
     fn txs(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         let result = bus.registers().x;
         bus.registers_mut().sp = result;
         Ok(false)
     }
 
     fn rti(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         let result = bus.stack_pop()? | P_FLAGS_U;
         bus.registers_mut().p = result;
         bus.registers_mut().pc = bus.stack_pop_word()?;
@@ -2039,7 +2074,7 @@ impl InstructionInfo {
         let data = ((data as i16) + 1) as u8;
         mode.write(bus, address, data)?;
         bus.registers_mut().set_z_n_flags(data);
-       Ok(false)
+        Ok(false)
     }
 
     fn dec(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
@@ -2051,11 +2086,10 @@ impl InstructionInfo {
     }
 
     fn dop(_bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-        
         Ok(false)
     }
     fn top(_bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
-       Ok(false)
+        Ok(false)
     }
 
     fn lax(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
@@ -2078,6 +2112,23 @@ impl InstructionInfo {
         let result = (bus.registers().a as i16 - tmp as i16) as u16;
         bus.registers_mut().set_c_flag(result < 0x0100);
         bus.registers_mut().set_z_n_flags(result as u8);
+        Ok(false)
+    }
+    fn isc(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let mut data = mode.read(bus, address)?;
+        data = (data as i16 + 1) as u8;
+        bus.cpu_write(address, data)?;
+        let result =
+            bus.registers().a as i16 - data as i16 - 1 + ((bus.registers().p & P_FLAGS_C) as i16);
+        let af = bus.registers().a >> 7;
+        let bf = data >> 7;
+        let cf = (result >> 7) & 1; 
+        bus.registers_mut()
+            .set_v_flag((af == 1 && cf == 0) || (af == 0 && bf == 1 && cf == 1));
+        bus.registers_mut().set_c_flag((result >> 8) & 1 != 1);
+        let a = result as u8;
+        bus.registers_mut().a = a;
+        bus.registers_mut().set_z_n_flags(a);
         Ok(false)
     }
 }

@@ -131,7 +131,7 @@ mod test {
         )));
         let mut cpu = Cpu::new(Rc::downgrade(&bus));
         cpu.reset().unwrap();
-        cpu.bus.upgrade().unwrap().borrow_mut().registers_mut().pc = 0xC000;
+        bus.borrow_mut().registers_mut().pc = 0xC000;
         let regex = Regex::new(
             r"(?P<ADDR>[A-Z0-9]{4})\s+([A-Z0-9]{2} )+\s*[*#$=@,()A-Z0-9 ]+A:(?P<A>[A-Z0-9]{2}) X:(?P<X>[A-Z0-9]{2}) Y:(?P<Y>[A-Z0-9]{2}) P:(?P<P>[A-Z0-9]{2}) SP:(?P<SP>[A-Z0-9]{2}) PPU:\s*(?P<PPU>\d+,\s*\d+) CYC:(?P<CYC>\d+)",
         ).unwrap();
@@ -143,7 +143,7 @@ mod test {
                     None => break,
                     Some(capture) => capture,
                 };
-                assert!(check(capture, cpu.cycles, cpu.bus.upgrade().unwrap().borrow().registers()));
+                assert!(check(capture, cpu.cycles, bus.borrow().registers()));
             }
 
             if let Err(error) = cpu.clock() {
