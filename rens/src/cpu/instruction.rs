@@ -81,6 +81,9 @@ enum Instruction {
     Aax,
     Dcp,
     Isc,
+    Slo,
+    Rla,
+    Sre,
 }
 #[derive(Debug)]
 struct InstructionInfo {
@@ -1633,6 +1636,159 @@ impl InstructionInfo {
                 ins_type: InstructionType::Common,
             },
 
+            // SLO
+            0x07 => Self {
+                code: ins,
+                ins: Instruction::Slo,
+                mode: AddressingMode::ZeroPage,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
+            0x17 => Self {
+                code: ins,
+                ins: Instruction::Slo,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x0F => Self {
+                code: ins,
+                ins: Instruction::Slo,
+                mode: AddressingMode::Absolute,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x1F => Self {
+                code: ins,
+                ins: Instruction::Slo,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
+            0x1B => Self {
+                code: ins,
+                ins: Instruction::Slo,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
+            0x03 => Self {
+                code: ins,
+                ins: Instruction::Slo,
+                mode: AddressingMode::IndirectX,
+                cycles: 8,
+                ins_type: InstructionType::Common,
+            },
+            0x13 => Self {
+                code: ins,
+                ins: Instruction::Slo,
+                mode: AddressingMode::IndirectY,
+                cycles: 8,
+                ins_type: InstructionType::Common,
+            },
+
+            // RLA
+            0x27 => Self {
+                code: ins,
+                ins: Instruction::Rla,
+                mode: AddressingMode::ZeroPage,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
+            0x37 => Self {
+                code: ins,
+                ins: Instruction::Rla,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x2F => Self {
+                code: ins,
+                ins: Instruction::Rla,
+                mode: AddressingMode::Absolute,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x3F => Self {
+                code: ins,
+                ins: Instruction::Rla,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
+            0x3B => Self {
+                code: ins,
+                ins: Instruction::Rla,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
+            0x23 => Self {
+                code: ins,
+                ins: Instruction::Rla,
+                mode: AddressingMode::IndirectX,
+                cycles: 8,
+                ins_type: InstructionType::Common,
+            },
+            0x33 => Self {
+                code: ins,
+                ins: Instruction::Rla,
+                mode: AddressingMode::IndirectY,
+                cycles: 8,
+                ins_type: InstructionType::Common,
+            },
+
+            // SRE
+            0x47 => Self {
+                code: ins,
+                ins: Instruction::Sre,
+                mode: AddressingMode::ZeroPage,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
+            0x57 => Self {
+                code: ins,
+                ins: Instruction::Sre,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x4F => Self {
+                code: ins,
+                ins: Instruction::Sre,
+                mode: AddressingMode::Absolute,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x5F => Self {
+                code: ins,
+                ins: Instruction::Sre,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
+            0x5B => Self {
+                code: ins,
+                ins: Instruction::Sre,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
+            0x43 => Self {
+                code: ins,
+                ins: Instruction::Sre,
+                mode: AddressingMode::IndirectX,
+                cycles: 8,
+                ins_type: InstructionType::Common,
+            },
+            0x53 => Self {
+                code: ins,
+                ins: Instruction::Sre,
+                mode: AddressingMode::IndirectY,
+                cycles: 8,
+                ins_type: InstructionType::Common,
+            },
+
             _ => None?,
         })
     }
@@ -1701,6 +1857,9 @@ impl InstructionInfo {
             Instruction::Aax => Self::aax(bus, self.mode, address),
             Instruction::Dcp => Self::dcp(bus, self.mode, address),
             Instruction::Isc => Self::isc(bus, self.mode, address),
+            Instruction::Slo => Self::slo(bus, self.mode, address),
+            Instruction::Rla => Self::rla(bus, self.mode, address),
+            Instruction::Sre => Self::sre(bus, self.mode, address),
         }?;
         Ok(match self.ins_type {
             InstructionType::Common => get_cross_page_cycles(self.cycles, false),
@@ -2122,12 +2281,42 @@ impl InstructionInfo {
             bus.registers().a as i16 - data as i16 - 1 + ((bus.registers().p & P_FLAGS_C) as i16);
         let af = bus.registers().a >> 7;
         let bf = data >> 7;
-        let cf = (result >> 7) & 1; 
+        let cf = (result >> 7) & 1;
         bus.registers_mut()
             .set_v_flag((af == 1 && cf == 0) || (af == 0 && bf == 1 && cf == 1));
         bus.registers_mut().set_c_flag((result >> 8) & 1 != 1);
         let a = result as u8;
         bus.registers_mut().a = a;
+        bus.registers_mut().set_z_n_flags(a);
+        Ok(false)
+    }
+    fn slo(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
+        bus.registers_mut().set_c_flag(data >> 7 == 1);
+        let data = ((data as u16) << 1) as u8;
+        mode.write(bus, address, data)?;
+        bus.registers_mut().a |= data;
+        let a = bus.registers().a;
+        bus.registers_mut().set_z_n_flags(a);
+        Ok(false)
+    }
+    fn rla(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let data = mode.read(bus, address)?;
+        let new = (data << 1) | (bus.registers().p & P_FLAGS_C);
+        mode.write(bus, address, new)?;
+        bus.registers_mut().set_c_flag(data >> 7 == 1);
+        bus.registers_mut().a &= new;
+        let a = bus.registers().a;
+        bus.registers_mut().set_z_n_flags(a);
+        Ok(false)
+    }
+    fn sre(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        let mut data = mode.read(bus, address)?;
+        bus.registers_mut().set_c_flag((data & 1) == 1);
+        data >>= 1;
+        mode.write(bus, address, data)?;
+        bus.registers_mut().a ^= data;
+        let a = bus.registers().a;
         bus.registers_mut().set_z_n_flags(a);
         Ok(false)
     }
