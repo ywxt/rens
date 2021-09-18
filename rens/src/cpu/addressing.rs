@@ -1,6 +1,6 @@
 use super::CpuBus;
 use crate::memory::Result;
-#[derive(PartialEq, Eq, Debug, Hash)]
+#[derive(PartialEq, Eq, Debug, Hash, Clone)]
 pub enum AddressingMode {
     Implicit,
     Accumulator,

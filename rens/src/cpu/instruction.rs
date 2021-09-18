@@ -84,6 +84,7 @@ enum Instruction {
     Slo,
     Rla,
     Sre,
+    Rra,
 }
 #[derive(Debug)]
 struct InstructionInfo {
@@ -1789,6 +1790,57 @@ impl InstructionInfo {
                 ins_type: InstructionType::Common,
             },
 
+            // RRA
+            0x67 => Self {
+                code: ins,
+                ins: Instruction::Rra,
+                mode: AddressingMode::ZeroPage,
+                cycles: 5,
+                ins_type: InstructionType::Common,
+            },
+            0x77 => Self {
+                code: ins,
+                ins: Instruction::Rra,
+                mode: AddressingMode::ZeroPageX,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x6F => Self {
+                code: ins,
+                ins: Instruction::Rra,
+                mode: AddressingMode::Absolute,
+                cycles: 6,
+                ins_type: InstructionType::Common,
+            },
+            0x7F => Self {
+                code: ins,
+                ins: Instruction::Rra,
+                mode: AddressingMode::AbsoluteX,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
+            0x7B => Self {
+                code: ins,
+                ins: Instruction::Rra,
+                mode: AddressingMode::AbsoluteY,
+                cycles: 7,
+                ins_type: InstructionType::Common,
+            },
+            0x63 => Self {
+                code: ins,
+                ins: Instruction::Rra,
+                mode: AddressingMode::IndirectX,
+                cycles: 8,
+                ins_type: InstructionType::Common,
+            },
+            0x73 => Self {
+                code: ins,
+                ins: Instruction::Rra,
+                mode: AddressingMode::IndirectY,
+                cycles: 8,
+                ins_type: InstructionType::Common,
+            },
+
             _ => None?,
         })
     }
@@ -1860,6 +1912,7 @@ impl InstructionInfo {
             Instruction::Slo => Self::slo(bus, self.mode, address),
             Instruction::Rla => Self::rla(bus, self.mode, address),
             Instruction::Sre => Self::sre(bus, self.mode, address),
+            Instruction::Rra => Self::rra(bus, self.mode, address),
         }?;
         Ok(match self.ins_type {
             InstructionType::Common => get_cross_page_cycles(self.cycles, false),
@@ -2319,6 +2372,9 @@ impl InstructionInfo {
         let a = bus.registers().a;
         bus.registers_mut().set_z_n_flags(a);
         Ok(false)
+    }
+    fn rra(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+        Self::ror(bus, mode.clone(), address).and(Self::adc(bus, mode, address))
     }
 }
 
