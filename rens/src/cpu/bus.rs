@@ -1,6 +1,6 @@
 use crate::{memory::Memory, memory::Result, rom::Mapper};
 
-use super::{memory::CpuMemory, stack, CpuRegisters};
+use super::{memory::CpuMemory, stack, CpuRegisters, PpuRegister};
 use std::fmt::{Debug, Formatter};
 
 pub struct CpuBus {
@@ -55,6 +55,10 @@ impl CpuBus {
     }
     pub fn registers_mut(&mut self) -> &mut CpuRegisters {
         &mut self.registers
+    }
+
+    pub fn ppu_register(&self) -> PpuRegister<'_> {
+        PpuRegister { cpu_bus: self }
     }
 }
 impl Debug for CpuBus {

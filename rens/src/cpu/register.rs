@@ -1,3 +1,4 @@
+use crate::cpu::CpuBus;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Not};
 
 /// 进位标志
@@ -55,14 +56,7 @@ pub struct CpuRegisters {
 
 impl CpuRegisters {
     pub fn new() -> Self {
-        CpuRegisters {
-            a: 0,
-            x: 0,
-            y: 0,
-            sp: 0,
-            pc: 0,
-            p: 0,
-        }
+        CpuRegisters::default()
     }
     pub fn set_z_n_flags(&mut self, flag: u8) {
         self.set_z_flag(flag == 0);
@@ -113,5 +107,25 @@ impl CpuRegisters {
     }
     pub fn has_v_flag(&self) -> bool {
         self.p.has_flag(P_FLAGS_V)
+    }
+}
+
+pub struct PpuRegister<'a> {
+    pub(super) cpu_bus: &'a CpuBus,
+}
+
+impl PpuRegister<'_> {
+    const PPU_CTRL: u16 = 0x2000;
+    const PPU_MASK: u16 = 0x2001;
+    const PPU_STATUS: u16 = 0x2002;
+
+    pub fn ppu_ctrl(&self) -> u8 {
+        self.cpu_bus.cpu_read(Self::PPU_CTRL).unwrap()
+    }
+    pub fn ppu_mask(&self) -> u8 {
+        self.cpu_bus.cpu_read(Self::PPU_MASK).unwrap()
+    }
+    pub fn ppu_status(&self) -> u8 {
+        self.cpu_bus.cpu_read(Self::PPU_STATUS).unwrap()
     }
 }
