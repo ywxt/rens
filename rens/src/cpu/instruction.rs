@@ -1,5 +1,5 @@
-use super::{addressing::AddressingMode, CpuBus, CpuError, P_FLAGS_B, P_FLAGS_C, P_FLAGS_U};
-use crate::memory::Result;
+use super::{addressing::AddressingMode, CpuBus, CpuError};
+use crate::{memory::Result, register::{P_FLAGS_B, P_FLAGS_C, P_FLAGS_U}};
 
 #[derive(Debug)]
 pub(super) struct InstructionProcessor;

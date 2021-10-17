@@ -3,7 +3,6 @@ mod bus;
 mod error;
 mod instruction;
 mod memory;
-mod register;
 mod stack;
 
 pub use bus::*;
@@ -12,7 +11,7 @@ pub use error::*;
 use crate::clock::Clock;
 use crate::memory::Result;
 use instruction::*;
-use register::*;
+use crate::register::*;
 use std::{cell::RefCell, rc::Weak};
 
 #[derive(Debug)]

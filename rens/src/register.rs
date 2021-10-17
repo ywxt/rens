@@ -128,4 +128,31 @@ impl PpuRegister<'_> {
     pub fn ppu_status(&self) -> u8 {
         self.cpu_bus.cpu_read(Self::PPU_STATUS).unwrap()
     }
+    pub fn name_table(&self) -> u8 {
+        self.ppu_ctrl() & 0b00000011
+    }
+
+    pub fn sprite_pattern_address(&self) -> u16 {
+        match self.ppu_ctrl() & 0b00001000 {
+            0b0 => 0,
+            0b00001000 => 0x1000,
+            _ => 0,
+        }
+    }
+
+    pub fn bg_pattern_address(&self) -> u16 {
+        match self.ppu_ctrl() & 0b00010000 {
+            0b0 => 0,
+            0b00010000 => 0x1000,
+            _ => 0,
+        }
+    }
+
+    pub fn nmi_enabled(&self) -> bool {
+        self.ppu_ctrl() & 0b10000000 == 0b10000000
+    }
+
+    pub fn v_blank(&self) -> bool {
+        self.ppu_status() & 0b10000000 == 0b10000000
+    }
 }

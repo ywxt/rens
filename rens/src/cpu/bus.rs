@@ -1,6 +1,7 @@
 use crate::{memory::Memory, memory::Result, rom::Mapper};
 
-use super::{memory::CpuMemory, stack, CpuRegisters, PpuRegister};
+use super::{memory::CpuMemory, stack};
+use crate::register::{CpuRegisters, PpuRegister};
 use std::fmt::{Debug, Formatter};
 
 pub struct CpuBus {
