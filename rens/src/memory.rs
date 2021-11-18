@@ -1,10 +1,12 @@
 #[derive(Debug, thiserror::Error)]
 pub enum MemoryError {
-    #[error("无法读取地址: {0:#010X}")]
+    #[error("Unable to read memory in {0:#010X}")]
     ReadMemory(u16),
 
-    #[error("无法写入地址: {0:#010X}")]
+    #[error("Unable to write memory in {0:#010X}")]
     WriteMemory(u16),
+    #[error("Address out of range: {0:#010X}")]
+    AddressOutOfRange(u16),
 }
 
 pub type Result<T> = std::result::Result<T, MemoryError>;

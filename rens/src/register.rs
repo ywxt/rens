@@ -120,13 +120,19 @@ impl PpuRegister<'_> {
     const PPU_STATUS: u16 = 0x2002;
 
     pub fn ppu_ctrl(&self) -> u8 {
-        self.cpu_bus.cpu_read(Self::PPU_CTRL).unwrap()
+        self.cpu_bus
+            .cpu_read(Self::PPU_CTRL)
+            .expect("Unable to read PPU CTRL(0x2000) register in memory.")
     }
     pub fn ppu_mask(&self) -> u8 {
-        self.cpu_bus.cpu_read(Self::PPU_MASK).unwrap()
+        self.cpu_bus
+            .cpu_read(Self::PPU_MASK)
+            .expect("Unable to read PPU MASK(0x2001) register in memory.")
     }
     pub fn ppu_status(&self) -> u8 {
-        self.cpu_bus.cpu_read(Self::PPU_STATUS).unwrap()
+        self.cpu_bus
+            .cpu_read(Self::PPU_STATUS)
+            .expect("Unable to read PPU STATUS(0x2002) register in memory.")
     }
     pub fn name_table(&self) -> u8 {
         self.ppu_ctrl() & 0b00000011
