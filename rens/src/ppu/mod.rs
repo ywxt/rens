@@ -97,16 +97,16 @@ impl PaletteData {
         ((self.0 >> (index * 8)) & 0xFF) as u8
     }
     pub const fn r(&self) -> u8 {
-        self.color(0)
+        self.color(3)
     }
     pub const fn g(&self) -> u8 {
-        self.color(1)
-    }
-    pub const fn b(&self) -> u8 {
         self.color(2)
     }
+    pub const fn b(&self) -> u8 {
+        self.color(1)
+    }
     pub const fn a(&self) -> u8 {
-        self.color(3)
+        self.color(0)
     }
     pub const fn data(&self) -> u32 {
         self.0
