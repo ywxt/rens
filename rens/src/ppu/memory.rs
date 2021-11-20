@@ -33,9 +33,12 @@ impl Memory for PpuMemory {
             Self::ADDRESS_PPU_PALETTE_MIRROR_START..=Self::ADDRESS_PPU_PALETTE_MIRROR_END => 0x20,
             _ => return Err(MemoryError::AddressOutOfRange(address)),
         };
-
+        let address = match address - offset {
+            0x3F10 | 0x3F14 | 0x3F18 | 0x3F1C => address - offset - 0x10,
+            address => address,
+        };
         self.memory
-            .get((address - offset) as usize)
+            .get(address as usize)
             .copied()
             .ok_or(MemoryError::ReadMemory(address))
     }
@@ -49,8 +52,12 @@ impl Memory for PpuMemory {
             Self::ADDRESS_PPU_PALETTE_MIRROR_START..=Self::ADDRESS_PPU_PALETTE_MIRROR_END => 0x20,
             _ => return Err(MemoryError::AddressOutOfRange(address)),
         };
+        let address = match address - offset {
+            0x3F10 | 0x3F14 | 0x3F18 | 0x3F1C => address - offset - 0x10,
+            address => address,
+        };
         self.memory
-            .get_mut((address - offset) as usize)
+            .get_mut(address as usize)
             .map(|value| *value = data)
             .ok_or(MemoryError::WriteMemory(address))
     }
