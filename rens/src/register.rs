@@ -1,4 +1,4 @@
-use crate::cpu::CpuBus;
+use crate::cpu::Bus;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Not};
 
 /// 进位标志
@@ -111,7 +111,7 @@ impl CpuRegisters {
 }
 
 pub struct PpuRegister<'a> {
-    pub(super) cpu_bus: &'a CpuBus,
+    pub(super) cpu_bus: &'a Bus,
 }
 
 impl PpuRegister<'_> {

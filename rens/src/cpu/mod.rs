@@ -1,22 +1,22 @@
 mod addressing;
-mod bus;
 mod error;
 mod instruction;
 mod memory;
-mod stack;
+pub mod stack;
 
-pub use bus::*;
+pub use crate::bus::*;
 pub use error::*;
+pub use memory::*;
 
 use crate::clock::Clock;
 use crate::memory::Result;
-use instruction::*;
 use crate::register::*;
+use instruction::*;
 use std::{cell::RefCell, rc::Weak};
 
 #[derive(Debug)]
 pub struct Cpu {
-    bus: Weak<RefCell<CpuBus>>,
+    bus: Weak<RefCell<Bus>>,
     processor: InstructionProcessor,
     cycles: u32,
     defer_cycles: u32,
@@ -26,7 +26,7 @@ impl Cpu {
     const VECTOR_RESET: u16 = 0xFFFC;
     const VECTOR_NMI: u16 = 0xFFFA;
     const VECTOR_IRQ_OR_BRK: u16 = 0xFFFE;
-    pub fn new(bus: Weak<RefCell<CpuBus>>) -> Self {
+    pub fn new(bus: Weak<RefCell<Bus>>) -> Self {
         Self {
             bus,
             processor: InstructionProcessor,
@@ -72,7 +72,7 @@ impl Cpu {
         if bus.registers().p.has_flag(P_FLAGS_I) {
             return Ok(());
         }
-        let irq_pc =bus.cpu_read_word(Self::VECTOR_IRQ_OR_BRK) ?;
+        let irq_pc = bus.cpu_read_word(Self::VECTOR_IRQ_OR_BRK)?;
         let pc = bus.registers().pc;
         let p = bus.registers().p;
         bus.stack_push_word(pc)?;
@@ -89,7 +89,7 @@ impl Cpu {
         let mut bus = bus.borrow_mut();
         let pc = bus.registers().pc;
         bus.registers_mut().pc += 1;
-        let op = bus.cpu_read(pc)?; 
+        let op = bus.cpu_read(pc)?;
         self.defer_cycles = self.processor.process(op, &mut bus)?;
         Ok(())
     }
@@ -109,7 +109,7 @@ impl Clock for Cpu {
 
 #[cfg(test)]
 mod test {
-    use super::{Cpu, CpuBus, CpuRegisters};
+    use super::{Bus, Cpu, CpuRegisters};
     use crate::clock::Clock;
     use crate::rom::{make_mapper, NesLoader};
     use regex::{Captures, Regex};
@@ -120,7 +120,7 @@ mod test {
     fn cpu_test() {
         let loader =
             NesLoader::from_slice(&std::fs::read("test_data/nestest.nes").unwrap()).unwrap();
-        let bus = Rc::new(RefCell::new(CpuBus::new(
+        let bus = Rc::new(RefCell::new(Bus::new(
             make_mapper(
                 loader.header().mapper_number(),
                 loader.prg().to_vec(),

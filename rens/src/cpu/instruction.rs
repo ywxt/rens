@@ -1,11 +1,14 @@
-use super::{addressing::AddressingMode, CpuBus, CpuError};
-use crate::{memory::Result, register::{P_FLAGS_B, P_FLAGS_C, P_FLAGS_U}};
+use super::{addressing::AddressingMode, Bus, CpuError};
+use crate::{
+    memory::Result,
+    register::{P_FLAGS_B, P_FLAGS_C, P_FLAGS_U},
+};
 
 #[derive(Debug)]
 pub(super) struct InstructionProcessor;
 
 impl InstructionProcessor {
-    pub fn process(&self, ins: u8, bus: &mut CpuBus) -> std::result::Result<u32, CpuError> {
+    pub fn process(&self, ins: u8, bus: &mut Bus) -> std::result::Result<u32, CpuError> {
         let instruction =
             InstructionInfo::from_code(ins).ok_or(CpuError::UnknownInstruction(ins))?;
         instruction.invoke(bus).map_err(|e| e.into())
@@ -1845,7 +1848,7 @@ impl InstructionInfo {
         })
     }
     /// 返回时钟周期
-    fn invoke(self, bus: &mut CpuBus) -> Result<u32> {
+    fn invoke(self, bus: &mut Bus) -> Result<u32> {
         let (address, cross_page) = self.mode.addressing(bus)?;
         // 分支语句是否跳转成功
         let extra_info = match self.ins {
@@ -1921,34 +1924,34 @@ impl InstructionInfo {
         })
     }
 
-    fn jmp(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
+    fn jmp(bus: &mut Bus, _mode: AddressingMode, address: u16) -> Result<bool> {
         bus.registers_mut().pc = address;
         Ok(false)
     }
-    fn ldx(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn ldx(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         bus.registers_mut().x = data;
         bus.registers_mut().set_z_n_flags(data);
         Ok(false)
     }
-    fn stx(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn stx(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         mode.write(bus, address, bus.registers().x)?;
         Ok(false)
     }
-    fn jsr(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
+    fn jsr(bus: &mut Bus, _mode: AddressingMode, address: u16) -> Result<bool> {
         bus.stack_push_word(bus.registers().pc - 1)?;
         bus.registers_mut().pc = address;
         Ok(false)
     }
 
-    fn nop(_bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn nop(_bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         Ok(false)
     }
-    fn sec(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn sec(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         bus.registers_mut().set_c_flag(true);
         Ok(false)
     }
-    fn bcs(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
+    fn bcs(bus: &mut Bus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = bus.registers().has_c_flag();
         if jmp_success {
             bus.registers_mut().pc = address;
@@ -1956,11 +1959,11 @@ impl InstructionInfo {
         Ok(jmp_success)
     }
 
-    fn clc(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn clc(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         bus.registers_mut().set_c_flag(false);
         Ok(false)
     }
-    fn bcc(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
+    fn bcc(bus: &mut Bus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = !bus.registers().has_c_flag();
         if jmp_success {
             bus.registers_mut().pc = address;
@@ -1968,31 +1971,31 @@ impl InstructionInfo {
         Ok(jmp_success)
     }
 
-    fn lda(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn lda(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         bus.registers_mut().a = data;
         bus.registers_mut().set_z_n_flags(data);
         Ok(false)
     }
-    fn beq(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
+    fn beq(bus: &mut Bus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = bus.registers().has_z_flag();
         if jmp_success {
             bus.registers_mut().pc = address;
         }
         Ok(jmp_success)
     }
-    fn bne(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
+    fn bne(bus: &mut Bus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = !bus.registers().has_z_flag();
         if jmp_success {
             bus.registers_mut().pc = address;
         }
         Ok(jmp_success)
     }
-    fn sta(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn sta(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         mode.write(bus, address, bus.registers().a)?;
         Ok(false)
     }
-    fn bit(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn bit(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let a = bus.registers().a;
         bus.registers_mut().set_z_flag(data & a == 0);
@@ -2001,21 +2004,21 @@ impl InstructionInfo {
         bus.registers_mut().set_n_flag(data >> 7 == 1);
         Ok(false)
     }
-    fn bvs(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
+    fn bvs(bus: &mut Bus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = bus.registers().has_v_flag();
         if jmp_success {
             bus.registers_mut().pc = address;
         }
         Ok(jmp_success)
     }
-    fn bvc(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
+    fn bvc(bus: &mut Bus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = !bus.registers().has_v_flag();
         if jmp_success {
             bus.registers_mut().pc = address;
         }
         Ok(jmp_success)
     }
-    fn bpl(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
+    fn bpl(bus: &mut Bus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = !bus.registers().has_n_flag();
 
         if jmp_success {
@@ -2023,17 +2026,17 @@ impl InstructionInfo {
         }
         Ok(jmp_success)
     }
-    fn rts(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn rts(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let address = bus.stack_pop_word()?;
         bus.registers_mut().pc = address + 1;
         Ok(false)
     }
 
-    fn sei(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn sei(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         bus.registers_mut().set_i_flag(true);
         Ok(false)
     }
-    fn asl(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn asl(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let mut data = mode.read(bus, address)?;
         bus.registers_mut().set_c_flag(data >> 7 == 1);
         data <<= 1;
@@ -2042,31 +2045,31 @@ impl InstructionInfo {
         Ok(false)
     }
 
-    fn sed(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn sed(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         bus.registers_mut().set_d_flag(true);
         Ok(false)
     }
 
-    fn php(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn php(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         bus.stack_push(bus.registers().p | P_FLAGS_U | P_FLAGS_B)?;
         Ok(false)
     }
 
-    fn pla(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn pla(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         bus.registers_mut().a = bus.stack_pop()?;
         let a = bus.registers().a;
         bus.registers_mut().set_z_n_flags(a);
         Ok(false)
     }
 
-    fn and(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn and(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let result = bus.registers().a & data;
         bus.registers_mut().a = result;
         bus.registers_mut().set_z_n_flags(result);
         Ok(false)
     }
-    fn cmp(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn cmp(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let result = bus.registers().a as i16 - data as i16;
         bus.registers_mut().set_z_n_flags(result as u8);
@@ -2074,17 +2077,17 @@ impl InstructionInfo {
         Ok(false)
     }
 
-    fn cld(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn cld(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         bus.registers_mut().set_d_flag(false);
         Ok(false)
     }
 
-    fn pha(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn pha(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         bus.stack_push(bus.registers().a)?;
         Ok(false)
     }
 
-    fn plp(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn plp(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let p = bus.stack_pop()?;
         bus.registers_mut().p = p;
         bus.registers_mut().set_u_flag(true);
@@ -2092,7 +2095,7 @@ impl InstructionInfo {
         Ok(false)
     }
 
-    fn bmi(bus: &mut CpuBus, _mode: AddressingMode, address: u16) -> Result<bool> {
+    fn bmi(bus: &mut Bus, _mode: AddressingMode, address: u16) -> Result<bool> {
         let jmp_success = bus.registers().has_n_flag();
 
         if jmp_success {
@@ -2101,7 +2104,7 @@ impl InstructionInfo {
         Ok(jmp_success)
     }
 
-    fn ora(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn ora(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let result = bus.registers().a | data;
         bus.registers_mut().a = result;
@@ -2109,12 +2112,12 @@ impl InstructionInfo {
         Ok(false)
     }
 
-    fn clv(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn clv(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         bus.registers_mut().set_v_flag(false);
         Ok(false)
     }
 
-    fn eor(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn eor(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let result = bus.registers().a ^ data;
         bus.registers_mut().a = result;
@@ -2122,7 +2125,7 @@ impl InstructionInfo {
         Ok(false)
     }
 
-    fn adc(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn adc(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let result =
             bus.registers().a as u16 + data as u16 + (bus.registers().p & P_FLAGS_C) as u16;
@@ -2136,13 +2139,13 @@ impl InstructionInfo {
         Ok(false)
     }
 
-    fn ldy(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn ldy(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         bus.registers_mut().y = data;
         bus.registers_mut().set_z_n_flags(data);
         Ok(false)
     }
-    fn cpy(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn cpy(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let y = bus.registers().y;
         let m = mode.read(bus, address)?;
         let result = (y as i16 - m as i16) as u8;
@@ -2151,7 +2154,7 @@ impl InstructionInfo {
         bus.registers_mut().set_n_flag(result >> 7 == 1);
         Ok(false)
     }
-    fn cpx(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn cpx(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let x = bus.registers().x;
         let m = mode.read(bus, address)?;
         let result = (x as i16 - m as i16) as u8;
@@ -2161,7 +2164,7 @@ impl InstructionInfo {
         Ok(false)
     }
 
-    fn sbc(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn sbc(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let result =
             bus.registers().a as i16 - data as i16 - (1 - (bus.registers().p & P_FLAGS_C)) as i16;
@@ -2176,83 +2179,83 @@ impl InstructionInfo {
         Ok(false)
     }
 
-    fn iny(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn iny(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let result = (bus.registers().y as i16 + 1) as u8;
         bus.registers_mut().y = result;
         bus.registers_mut().set_z_n_flags(result);
         Ok(false)
     }
 
-    fn inx(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn inx(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let result = (bus.registers().x as i16 + 1) as u8;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
         Ok(false)
     }
 
-    fn dex(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn dex(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let result = (bus.registers().x as i16 - 1) as u8;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
         Ok(false)
     }
 
-    fn dey(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn dey(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let result = (bus.registers().y as i16 - 1) as u8;
         bus.registers_mut().y = result;
         bus.registers_mut().set_z_n_flags(result);
         Ok(false)
     }
 
-    fn tax(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn tax(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let result = bus.registers().a;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
         Ok(false)
     }
 
-    fn tay(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn tay(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let result = bus.registers().a;
         bus.registers_mut().y = result;
         bus.registers_mut().set_z_n_flags(result);
         Ok(false)
     }
 
-    fn txa(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn txa(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let result = bus.registers().x;
         bus.registers_mut().a = result;
         bus.registers_mut().set_z_n_flags(result);
         Ok(false)
     }
 
-    fn tya(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn tya(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let result = bus.registers().y;
         bus.registers_mut().a = result;
         bus.registers_mut().set_z_n_flags(result);
         Ok(false)
     }
 
-    fn tsx(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn tsx(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let result = bus.registers().sp;
         bus.registers_mut().x = result;
         bus.registers_mut().set_z_n_flags(result);
         Ok(false)
     }
 
-    fn txs(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn txs(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let result = bus.registers().x;
         bus.registers_mut().sp = result;
         Ok(false)
     }
 
-    fn rti(bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn rti(bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         let result = bus.stack_pop()? | P_FLAGS_U;
         bus.registers_mut().p = result;
         bus.registers_mut().pc = bus.stack_pop_word()?;
         Ok(false)
     }
 
-    fn lsr(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn lsr(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let result = data >> 1;
         mode.write(bus, address, result)?;
@@ -2260,7 +2263,7 @@ impl InstructionInfo {
         bus.registers_mut().set_z_n_flags(result);
         Ok(false)
     }
-    fn ror(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn ror(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let result = (data >> 1) | ((bus.registers().p & P_FLAGS_C) << 7);
         mode.write(bus, address, result)?;
@@ -2268,7 +2271,7 @@ impl InstructionInfo {
         bus.registers_mut().set_z_n_flags(result);
         Ok(false)
     }
-    fn rol(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn rol(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let result = (data << 1) | (bus.registers().p & P_FLAGS_C);
         mode.write(bus, address, result)?;
@@ -2277,11 +2280,11 @@ impl InstructionInfo {
         Ok(false)
     }
 
-    fn sty(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn sty(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         mode.write(bus, address, bus.registers().y)?;
         Ok(false)
     }
-    fn inc(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn inc(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let data = ((data as i16) + 1) as u8;
         mode.write(bus, address, data)?;
@@ -2289,7 +2292,7 @@ impl InstructionInfo {
         Ok(false)
     }
 
-    fn dec(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn dec(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let result = ((data as i16) - 1) as u8;
         mode.write(bus, address, result)?;
@@ -2297,14 +2300,14 @@ impl InstructionInfo {
         Ok(false)
     }
 
-    fn dop(_bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn dop(_bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         Ok(false)
     }
-    fn top(_bus: &mut CpuBus, _mode: AddressingMode, _address: u16) -> Result<bool> {
+    fn top(_bus: &mut Bus, _mode: AddressingMode, _address: u16) -> Result<bool> {
         Ok(false)
     }
 
-    fn lax(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn lax(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         bus.registers_mut().a = data;
         bus.registers_mut().x = data;
@@ -2312,12 +2315,12 @@ impl InstructionInfo {
         Ok(false)
     }
 
-    fn aax(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn aax(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = bus.registers().a & bus.registers().x;
         mode.write(bus, address, data)?;
         Ok(false)
     }
-    fn dcp(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn dcp(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let tmp = (data as i16 - 1) as u8;
         mode.write(bus, address, tmp)?;
@@ -2326,7 +2329,7 @@ impl InstructionInfo {
         bus.registers_mut().set_z_n_flags(result as u8);
         Ok(false)
     }
-    fn isc(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn isc(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let mut data = mode.read(bus, address)?;
         data = (data as i16 + 1) as u8;
         bus.cpu_write(address, data)?;
@@ -2343,7 +2346,7 @@ impl InstructionInfo {
         bus.registers_mut().set_z_n_flags(a);
         Ok(false)
     }
-    fn slo(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn slo(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         bus.registers_mut().set_c_flag(data >> 7 == 1);
         let data = ((data as u16) << 1) as u8;
@@ -2353,7 +2356,7 @@ impl InstructionInfo {
         bus.registers_mut().set_z_n_flags(a);
         Ok(false)
     }
-    fn rla(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn rla(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let data = mode.read(bus, address)?;
         let new = (data << 1) | (bus.registers().p & P_FLAGS_C);
         mode.write(bus, address, new)?;
@@ -2363,7 +2366,7 @@ impl InstructionInfo {
         bus.registers_mut().set_z_n_flags(a);
         Ok(false)
     }
-    fn sre(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn sre(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         let mut data = mode.read(bus, address)?;
         bus.registers_mut().set_c_flag((data & 1) == 1);
         data >>= 1;
@@ -2373,7 +2376,7 @@ impl InstructionInfo {
         bus.registers_mut().set_z_n_flags(a);
         Ok(false)
     }
-    fn rra(bus: &mut CpuBus, mode: AddressingMode, address: u16) -> Result<bool> {
+    fn rra(bus: &mut Bus, mode: AddressingMode, address: u16) -> Result<bool> {
         Self::ror(bus, mode.clone(), address).and(Self::adc(bus, mode, address))
     }
 }

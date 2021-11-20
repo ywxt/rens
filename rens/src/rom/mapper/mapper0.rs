@@ -73,7 +73,7 @@ impl Memory for Mapper000 {
                         .ok_or(MemoryError::ReadMemory(address))
                 }
             }
-            _ => Err(MemoryError::ReadMemory(address)),
+            _ => Err(MemoryError::AddressOutOfRange(address)),
         }
     }
 
@@ -99,7 +99,7 @@ impl Memory for Mapper000 {
                 }
                 Ok(())
             }
-            _ => Err(MemoryError::WriteMemory(address)),
+            _ => Err(MemoryError::AddressOutOfRange(address)),
         }
     }
 }

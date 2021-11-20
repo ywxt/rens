@@ -1,19 +1,22 @@
 use crate::{memory::Memory, memory::Result, rom::Mapper};
 
-use super::{memory::CpuMemory, stack};
+use crate::cpu::{stack, CpuMemory};
+use crate::ppu::PpuMemory;
 use crate::register::{CpuRegisters, PpuRegister};
 use std::fmt::{Debug, Formatter};
 
-pub struct CpuBus {
+pub struct Bus {
     cpu_memory: CpuMemory,
+    ppu_memory: PpuMemory,
     mapper: Box<dyn Mapper>,
     registers: CpuRegisters,
 }
 
-impl CpuBus {
+impl Bus {
     pub fn new(mapper: Box<dyn Mapper>) -> Self {
         Self {
             cpu_memory: CpuMemory::new(),
+            ppu_memory: PpuMemory::new(),
             mapper,
             registers: CpuRegisters::new(),
         }
@@ -36,6 +39,26 @@ impl CpuBus {
     }
     pub fn cpu_write_word(&mut self, address: u16, data: u16) -> Result<()> {
         self.cpu_memory
+            .write_word(address, data)
+            .or_else(|_| self.mapper.write_word(address, data))
+    }
+    pub fn ppu_read(&self, address: u16) -> Result<u8> {
+        self.ppu_memory
+            .read(address)
+            .or_else(|_| self.mapper.read(address))
+    }
+    pub fn ppu_read_word(&self, address: u16) -> Result<u16> {
+        self.ppu_memory
+            .read_word(address)
+            .or_else(|_| self.mapper.read_word(address))
+    }
+    pub fn ppu_write(&mut self, address: u16, data: u8) -> Result<()> {
+        self.ppu_memory
+            .write(address, data)
+            .or_else(|_| self.mapper.write(address, data))
+    }
+    pub fn ppu_write_word(&mut self, address: u16, data: u16) -> Result<()> {
+        self.ppu_memory
             .write_word(address, data)
             .or_else(|_| self.mapper.write_word(address, data))
     }
@@ -62,7 +85,7 @@ impl CpuBus {
         PpuRegister { cpu_bus: self }
     }
 }
-impl Debug for CpuBus {
+impl Debug for Bus {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CpuBus")
             .field("cpu_memory", &self.cpu_memory)

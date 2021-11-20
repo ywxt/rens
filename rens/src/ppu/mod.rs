@@ -1,6 +1,6 @@
 mod bus;
 mod memory;
-pub use bus::*;
+
 pub use memory::*;
 
 #[derive(Debug, Eq, PartialEq)]
